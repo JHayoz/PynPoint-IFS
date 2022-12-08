@@ -10,3 +10,5 @@ setup(
     author_email='egarvin@phys.ethz.ch',
     description='Package for IFS cube reduction'
 )
+
+# Dependencies: Pynpoint, petitRADTRANS?, spectres?
