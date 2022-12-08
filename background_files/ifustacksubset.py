@@ -1,0 +1,267 @@
+"""
+Pipeline modules for frame selection.
+"""
+
+import sys
+import time
+import math
+import warnings
+import copy
+
+from typing import Union, Tuple
+
+import numpy as np
+
+from typeguard import typechecked
+
+from pynpoint.core.processing import ProcessingModule
+from pynpoint.util.module import progress
+from pynpoint.util.image import shift_image, rotate
+
+
+
+
+class CrossCorrelationPreparationModule(ProcessingModule):
+    """
+        Module to eliminate regions of the spectrum.
+        """
+    
+    def __init__(self,
+                 name_in: str = "Select_range",
+                 image_in_tag: str = "initial_spectrum",
+                 shift_cubes_in_tag: str ="centering_cubes",
+                 image_out_tag: str = "im_2D",
+                 mask_out_tag: str ="mask",
+                 shift: bool = True,
+                 rotate: bool = True,
+                 stack: bool = False):
+        """
+            Constructor of CrossCorrelationPreparationModule.
+            
+            :param name_in: Unique name of the module instance.
+            :type name_in: str
+            :param image_in_tag: Tag of the database entry that is read as input.
+            :type image_in_tag: str
+            :param shift_cubes_in_tag: Tag of the database entry that is read as input.
+            :type shift_cubes_in_tag: str
+            :param image_out_tag: Tag of the database entry that is written as output. Should be
+            different from *image_in_tag*.
+            :type image_out_tag: str
+            :param mask_out_tag: Tag of the database entry that is written as output.
+            :type mask_out_tag: str
+            :param shift: shift the images to center them.
+            :type shift: bool
+            :param rotate: rotate the images to a common orientation.
+            :type rotate: bool
+            :param stack: stack the images to a unique cube.
+            :type stack: bool
+            
+            :return: None
+            """
+        
+        super(CrossCorrelationPreparationModule, self).__init__(name_in)
+        
+        self.m_image_in_port = self.add_input_port(image_in_tag)
+        if type(shift_cubes_in_tag)==str:
+            self.m_shift_in_port = self.add_input_port(shift_cubes_in_tag)
+        else:
+            self.m_shift_in_port = {}
+            for i in range(len(shift_cubes_in_tag)):
+                self.m_shift_in_port[i]=self.add_input_port(shift_cubes_in_tag[i])
+        
+        self.m_image_out_port = self.add_output_port(image_out_tag)
+        self.m_mask_out_port = self.add_output_port(mask_out_tag)
+        self.m_shift_cubes_in_tag = shift_cubes_in_tag
+        
+        self.m_shift = shift
+        self.m_rotate = rotate
+        self.m_stack = stack
+
+    def run(self):
+        """
+            Run method of the module. Convolves the images with a Gaussian kernel.
+            
+            :return: None
+            """
+        
+        nspectrum = self.m_image_in_port.get_attribute("NFRAMES")
+        pixscale = self.m_image_in_port.get_attribute("PIXSCALE")
+        parang = self.m_image_in_port.get_attribute("PARANG")
+        size = self.m_image_in_port.get_shape()[-1]
+        
+        if type(self.m_shift_cubes_in_tag) == str:
+            shift_init = self.m_shift_in_port.get_all()
+            shift_x = shift_init[:,0]
+            shift_y = shift_init[:,2]
+        
+        else:
+            shift_x = np.zeros(len(nspectrum))
+            shift_y = np.zeros(len(nspectrum))
+            count = 0
+            for i in range(len(self.m_shift_cubes_in_tag)):
+                shift_init = self.m_shift_in_port[i].get_all()
+                shift_x[count:count+len(shift_init)] = shift_init[:,0]
+                shift_y[count:count+len(shift_init)] = shift_init[:,2]
+                count += len(shift_init)
+
+        shift = np.array([shift_y,shift_x]).T
+
+
+        final_cube = []
+    
+        mask_arr = np.zeros((len(nspectrum), size,size))
+        mask_arr_shift = np.zeros_like(mask_arr)
+        mask_arr_rot = np.zeros_like(mask_arr)
+    
+        start_time = time.time()
+        for i, nspectrum_i in enumerate(nspectrum):
+            progress(i, len(nspectrum), 'Running CrossCorrelationPreparationModule...', start_time)
+            
+            cube_init = self.m_image_in_port[i*nspectrum_i:(i+1)*nspectrum_i,:,:]
+            
+            mask_arr[i] = np.where(cube_init[0]==0, False, True)
+            if self.m_shift:
+                mask_arr_shift[i] = shift_image(mask_arr[i], (-shift[i][0], -shift[i][1]), "spline")
+            else:
+                mask_arr_shift[i] = copy.copy(mask_arr[i])
+            
+            if self.m_rotate:
+                mask_arr_rot[i] = rotate(mask_arr_shift[i], -parang[i], reshape=False)
+            else:
+                mask_arr_rot[i] = copy.copy(mask_arr_shift[i])
+            
+            cube_shift = np.zeros_like(cube_init)
+            cube_rot = np.zeros_like(cube_init)
+            for k in range(nspectrum_i):
+                if self.m_shift:
+                    cube_shift[k] = shift_image(cube_init[k], (-shift[i][0], -shift[i][1]), "spline")
+                else:
+                    cube_shift[k] = copy.copy(cube_init[k])
+                
+                if self.m_rotate:
+                    cube_rot[k] = rotate(cube_shift[k], -parang[i], reshape=False)
+                else:
+                    cube_rot[k] = copy.copy(cube_shift[k])
+    
+            final_cube.append(cube_rot)
+        
+        final_cube = np.array(final_cube)
+
+        mask_sum = np.sum(mask_arr_rot, axis=0)
+        mask_final = np.where(mask_sum>=len(nspectrum)*0.8, True, False)
+        mask_output = np.where(mask_sum>=len(nspectrum)*0.8, 1, 0)
+
+        if self.m_stack==False:
+            self.m_image_out_port.set_all(final_cube.reshape(np.shape(final_cube)[0]*np.shape(final_cube)[1], np.shape(final_cube)[3],np.shape(final_cube)[3]))
+        else:
+            cube_median = []
+            for k in range(nspectrum[0]):
+                cube_wv = np.where(np.abs(mask_arr_rot)>0.1, final_cube[:,k,:,:], np.nan)
+                cube_median.append(np.where(mask_final, np.nanmedian(cube_wv, axis=0), np.nan))
+            cube_median = np.array(cube_median)
+            self.m_image_out_port.set_all(cube_median)
+        
+        self.m_mask_out_port.set_all(mask_output)
+
+        
+        self.m_image_out_port.copy_attributes(self.m_image_in_port)
+        self.m_image_out_port.add_history("CC prep", "CC prep")
+        if self.m_stack == True:
+            self.m_image_out_port.add_attribute("NFRAMES",[nspectrum[0]], False)
+        
+        self.m_mask_out_port.copy_attributes(self.m_image_in_port)
+        self.m_mask_out_port.add_history("CC prep", "CC prep")
+        
+        
+        self.m_image_out_port.close_port()
+
+
+
+class BinIFUModule(ProcessingModule):
+    """
+    Module to bin together spectral channels.
+    """
+    
+    def __init__(self,
+                 bin,
+                 name_in = "bin_channels",
+                 wv_in_tag = ("wavelength_range",2000),
+                 image_in_tag = "cubes_aligned",
+                 image_root_out_tag = "bin_",
+                 wv_out_tag = "wavelengths",
+                 combine = 'median'):
+        """
+            Constructor of BinIFUModule.
+            
+            :param name_in: Unique name of the module instance.
+            :type name_in: str
+            :param image_in_tag: Tag of the database entry that is read as input.
+            :type image_in_tag: str
+            :param wv_in_tag: Tag of the database entry that is read as input.
+            :type wv_in_tag: str
+            :param image_root_out_tag: Tag of the database entry that is written as output. Should be
+            different from *image_in_tag*.
+            :type image_root_out_tag: str
+            :param wv_out_tag: Tag of the database entry that is written as output.
+            :type wv_out_tag: str
+            :param combine: method used to combine the frames
+            :type combine: str
+            
+            :return: None
+            """
+        
+        super(BinIFUModule, self).__init__(name_in)
+        
+        self.m_image_in_port = self.add_input_port(image_in_tag)
+        self.m_wv_in_port = self.add_input_port(wv_in_tag[0])
+        self.m_wv_out_port = self.add_output_port(wv_out_tag)
+        
+        self.m_outports = []
+        for k in range(int(wv_in_tag[1]/bin)):
+            self.m_outports.append(self.add_output_port(image_root_out_tag+str(k)))
+        
+        self.m_nbins = bin
+        self.m_combine = combine
+    
+    def run(self):
+        """
+        Run method of the module. Combines the frames of the cubes.
+            
+        :return: None
+        """
+        
+        wv_i =self.m_wv_in_port.get_all()
+        nbins_init = len(wv_i)
+        num_bin_frames = int(nbins_init/self.m_nbins)
+        
+        wv_f = []
+        for i in range(num_bin_frames):
+            wv_f.append((wv_i[i*self.m_nbins]+wv_i[(i+1)*self.m_nbins])/2.)
+
+        nframes = self.m_image_in_port.get_attribute("NFRAMES")
+        size = self.m_image_in_port.get_shape()[-1]
+    
+        start_time = time.time()
+        for i, nframes_i in enumerate(nframes):
+            progress(i, len(nframes), 'Running BinIFUModule...', start_time)
+            cube = self.m_image_in_port[i*nframes_i : (i+1)*nframes_i]
+        
+            for k in range(num_bin_frames):
+                if self.m_combine == 'median':
+                    self.m_outports[k].append(np.median(cube[k*self.m_nbins : (k+1)*self.m_nbins], axis=0).reshape(1,size,size))
+                if self.m_combine == 'sum':
+                    self.m_outports[k].append(np.median(cube[k*self.m_nbins : (k+1)*self.m_nbins], axis=0).reshape(1,size,size))
+
+        sys.stdout.write('Running BinIFUModule... [DONE]\n')
+        sys.stdout.flush()
+        
+        
+        for k in range(num_bin_frames):
+            self.m_outports[k].copy_attributes(self.m_image_in_port)
+            self.m_outports[k].add_attribute("NFRAMES",[len(nframes)], False)
+            self.m_outports[k].add_history("Bin spectrum", "nbins = "+str(self.m_nbins))
+        
+        self.m_wv_out_port.set_all(wv_f)
+        self.m_wv_out_port.add_history("Bin wavelength", "nbins = "+str(self.m_nbins))
+        self.m_wv_out_port.close_port()
+
