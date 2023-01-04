@@ -1,9 +1,9 @@
 from distutils.core import setup
 
 setup(
-    name='Pynpoint_ifs',
-    version='0.1',
-    packages=['Pynpoint_ifs'],
+    name='pynpoint_ifs',
+    version='0.0.1',
+    packages=['pynpoint_ifs'],
     url='',
     license='',
     author='Emily O. Garvin',
