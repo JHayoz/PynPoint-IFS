@@ -249,3 +249,31 @@ quit()
 python
 execfile('Total_reduction.py')
 '''
+
+
+def clean_NaNs(image):
+    size0 = np.shape(image)[0]
+    size1 = np.shape(image)[1]
+    if self.m_local:
+        im_new = generic_filter(image, np.nanmedian, size=3)
+    else:
+        im_new = np.nanmedian(image)
+    for i in range(size0):
+        for j in range(size1):
+            if not np.isfinite(image[i, j]):
+                if self.m_local:
+                    image[i, j] = im_new[i, j]
+                else:
+                    image[i, j] = im_new
+
+    return image
+
+
+self.apply_function_to_images(clean_NaNs,
+                              self.m_image_in_port,
+                              self.m_image_out_port,
+                              "Running NanFilterModule...")
+
+self.m_image_out_port.copy_attributes(self.m_image_in_port)
+self.m_image_out_port.add_history("NaN removed", "sub with mean ")
+self.m_image_out_port.close_port()

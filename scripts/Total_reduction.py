@@ -4,44 +4,63 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 import sys
-sys.path.append("/net/ipa-gate/export/ipa/quanz/user_accounts/egarvin/IFS_pipeline/")
-#sys.path.append("/Users/Gabo/Tools/SpectRes-master/")
-from background_files.ifuframeselection import SelectWavelengthRangeModule
-from background_files.ifubadpixel import NanFilterModule
-from background_files.ifucentering import IFUAlignCubesModule
-from background_files.ifupsfpreparation import IFUStellarSpectrumModule
-from background_files.ifupsfsubtraction import IFUPSFSubtractionModule
-from background_files.ifuresizing import FoldingModule
-from background_files.ifustacksubset import CrossCorrelationPreparationModule
-from background_files.ifucrosscorrelation import CrossCorrelationModule
-from background_files.ifupcasubtraction import IFUResidualsPCAModule
-from background_files.ifuresizing import UnfoldingModule
-from pynpoint import Pypeline, FitsReadingModule, FitCenterModule, RemoveLinesModule, StackCubesModule, BadPixelSigmaFilterModule, ParangReadingModule, AddLinesModule, FitsWritingModule, TextWritingModule
+sys.path.append("/Users/Gabo/PynPoint/PynPoint")
+sys.path.append("/Users/Gabo/Tools/SpectRes-master/")
+from spectres import spectres
+
+from pynpoint import *
+
+H2O = fits.open('/Users/Gabo/SINFONI/Spectral_template/h2o_clean_norm.fits')[0].data
+H2O_wv_HR = H2O[0,:]
+H2O_abs_HR = H2O[1,:]
+
+wv_data = np.loadtxt('/Users/Gabo/SINFONI/Beta_Pic/Results/wavelength_range.txt')
+wv_step = wv_data[1]-wv_data[0]
+for k in range(150):
+    wv_data = np.concatenate((np.array([wv_data[0]-wv_step]), wv_data, np.array([wv_data[-1]+wv_step])))
+H2O_abs_LR = spectres(wv_data,H2O_wv_HR,H2O_abs_HR)
+
+#wv_model_data_res = np.arange(H2O_wv[30], H2O_wv[-30], (wv_data[-1]-wv_data[0])/len(wv_data))
+#H2O_data_res = spectres(wv_data,H2O_wv_HR,H2O_abs_HR)
+
+H2O_fit_HR = np.polyfit(H2O_wv_HR, H2O_abs_HR, 6)
+H2O_cnt_HR = np.polyval(H2O_fit_HR, H2O_wv_HR)
+H2O_fit_LR = np.polyfit(wv_data, H2O_abs_LR, 6)
+H2O_cnt_LR = np.polyval(H2O_fit_LR, wv_data)
+#H2O_fit_data_res = np.polyfit(wv_model_data_res, H2O_data_res, 3)
+#H2O_cnt_data_res = np.polyval(H2O_fit_data_res, wv_model_data_res)
+
+H2O_residuals_HR = H2O_abs_HR - H2O_cnt_HR
+H2O_residuals_LR = H2O_abs_LR - H2O_cnt_LR
+#H2O_cnt_res_data_range = H2O_data_range-H2O_cnt_data_range
+#H2O_cnt_res_data_res = H2O_data_res-H2O_cnt_data_res ######
+
+
+fig, (ax,bx) = plt.subplots(2,1,figsize=(18,6))
+ax.plot(H2O_wv_HR, H2O_abs_HR, color='lightblue', alpha=0.5)
+ax.plot(wv_data, H2O_abs_LR, color='blue')
+#ax.plot(wv_model_data_res, CO_data_res, color='darkviolet')
+ax.plot(H2O_wv_HR, H2O_cnt_HR,color='r')
+ax.set_xlim(2.,2.5)
+
+bx.plot(H2O_wv_HR, H2O_residuals_HR, color='lightblue', alpha=0.5)
+bx.plot(wv_data,H2O_residuals_LR, color='blue')
+bx.set_xlim(2.,2.5)
+fig.savefig('/Users/Gabo/SINFONI/Beta_Pic/Results/Spectra_H2O.png')
 
 # Define Directories
-#working_place_in = "/Users/Gabo/SINFONI/Beta_Pic/Workspace_test"
-#input_place_in = "/Users/Gabo/SINFONI/Beta_Pic/Reflex_output/Science_test"
-#output_place_in = "/Users/Gabo/SINFONI/Beta_Pic/Results/5/"
+working_place_in = "/Users/Gabo/SINFONI/Beta_Pic/Workspace_test"
+input_place_in = "/Users/Gabo/SINFONI/Beta_Pic/Reflex_output/Science_test"
+output_place_in = "/Users/Gabo/SINFONI/Beta_Pic/Results/5/"
 
-# Define Directories
-working_place_in = "/home/ipa/quanz/user_accounts/egarvin/IFS_pipeline/30_data/betapic/sinfoni_Kband/working_place/"
-input_place_in = "/home/ipa/quanz/user_accounts/egarvin/IFS_pipeline/30_data/betapic/sinfoni_Kband/science_test/" #input_place
-output_place_in = "/home/ipa/quanz/user_accounts/egarvin/IFS_pipeline/30_data/betapic/sinfoni_Kband/output_place/"
-# pipeline.get_data("snr_CC")
-
-# pynpoint
 pipeline = Pypeline(working_place_in, input_place_in, output_place_in)
 
-# pynpoint
 Import_Science = FitsReadingModule(name_in = "Import_Science",
                                    input_dir = input_place_in,
                                    image_tag = "initial_spectrum",
                                    check=True
                                    )
 
-pipeline.add_module(Import_Science)
-pipeline.run()
-pipeline.get_data("initial_spectrum")
 
 Select_range = SelectWavelengthRangeModule(range_f = (2.088, 2.452),
                                            name_in = "Select_range",
@@ -49,53 +68,29 @@ Select_range = SelectWavelengthRangeModule(range_f = (2.088, 2.452),
                                            image_out_tag = "spectrum_selected",
                                            wv_out_tag = "wavelength_range"
                                            )
-pipeline.add_module(Select_range)
-pipeline.run_module("Select_range")
-pipeline.get_data("spectrum_selected")
-pipeline.get_data("wavelength_range")
 
 
-Substitute_NaNs = NanFilterModule(name_in = "Substitute_NaNs",
+Substitute_NaNs = NanSigmaFilterModule(name_in = "Substitute_NaNs",
                                        image_in_tag = "spectrum_selected",
                                        image_out_tag = "spectrum_NaN")
 
-pipeline.add_module(Substitute_NaNs)
-pipeline.run_module("Substitute_NaNs")
-pipeline.get_data("spectrum_NaN")
 
-# pynpoint
 Small_image = RemoveLinesModule(lines = (4,4,4,4),
                              name_in = "Enlarge_image",
                              image_in_tag = "spectrum_NaN",
                              image_out_tag = "spectrum_NaN_small")
 
-pipeline.add_module(Small_image)
-pipeline.run_module(Small_image)
-pipeline.get_data("spectrum_NaN_small")
 
-# pynpoint
 Centering_all = FitCenterModule(name_in = "Centering_all",
                                 image_in_tag = "spectrum_NaN_small",
                                 method='full',
                                 fit_out_tag='centering_all',
                                 radius = 1.0)
 
-pipeline.add_module(Centering_all)
-pipeline.run_module(Centering_all)
-pipeline.get_data("centering_all")
-
-
-# pynpoint
 Coadd_cubes = StackCubesModule(name_in= "Coadd_cubes",
                              image_in_tag = "spectrum_NaN_small",
                              image_out_tag = "coadded_cubes",
                              combine='median')
-
-
-
-pipeline.add_module(Import_Science)
-pipeline.run_module(Import_Science)
-pipeline.get_data("initial_spectrum")
 
 Centering_cubes = FitCenterModule(name_in = "Centering_cubes",
                                 image_in_tag = "coadded_cubes",
@@ -110,9 +105,6 @@ Shift_no_center = IFUAlignCubesModule(precision=0.02,
                                        name_in="shift_no_center",
                                        image_in_tag="spectrum_NaN_small",
                                        image_out_tag="cubes_aligned")
-pipeline.add_module(Shift_no_center)
-pipeline.run_module(Shift_no_center)
-pipeline.get_data("initial_spectrum")
 
 Centering_test = FitCenterModule(name_in = "Centering_test",
                                   image_in_tag = "cubes_aligned",
@@ -121,11 +113,6 @@ Centering_test = FitCenterModule(name_in = "Centering_test",
                                   radius = 1.0,
                                   guess=(0.5,0.2,3.,3.,5000,0.,0.))
 
-pipeline.add_module(Centering_test)
-pipeline.run_module(Centering_test)
-pipeline.get_data("initial_spectrum")
-
-# pynpoint
 bp = BadPixelSigmaFilterModule(name_in='bp',
                                image_in_tag="cubes_aligned",
                                image_out_tag="cubes_bp",
@@ -134,19 +121,13 @@ bp = BadPixelSigmaFilterModule(name_in='bp',
                                sigma=3.,
                                iterate=4)
 
-pipeline.add_module(bp)
-pipeline.run_module(bp)
-pipeline.get_data("initial_spectrum")
-
 star_master = IFUStellarSpectrumModule(name_in="star_master",
                                        image_in_tag="cubes_aligned",
                                        wv_in_tag = "wavelength_range",
                                        spectrum_out_tag="stellar_spectrum",
                                        num_pix = 10,
                                        std_max = 0.1)
-pipeline.add_module(star_master)
-pipeline.run_module(star_master)
-pipeline.get_data("initial_spectrum")
+
 
 master_sub = IFUPSFSubtractionModule(name_in = "master_sub",
                                      image_in_tag="cubes_aligned",
@@ -156,20 +137,10 @@ master_sub = IFUPSFSubtractionModule(name_in = "master_sub",
                                      sigma=2.,
                                      iteration = 2)
 
-pipeline.add_module(master_sub)
-pipeline.run_module(master_sub)
-pipeline.get_data("initial_spectrum")
-
-# pynpoint
 parang = ParangReadingModule(file_name = 'parang.txt',
                              name_in = "parang",
-                             input_dir= "/home/ipa/quanz/user_accounts/egarvin/IFS_pipeline/30_data/betapic/sinfoni_Kband/auxiliaries",
-                             #input_dir = '/Users/Gabo/SINFONI/Beta_Pic/Results/',
+                             input_dir = '/Users/Gabo/SINFONI/Beta_Pic/Results/',
                              data_tag = "PSF_sub")
-
-pipeline.add_module(parang)
-pipeline.run_module(parang)
-pipeline.get_data("initial_spectrum")
 
 Folding = FoldingModule(name_in="Folding",
                         image_in_tag="PSF_sub",
@@ -184,7 +155,6 @@ Unfolding = UnfoldingModule(name_in="Unfolding",
                         image_in_tag="im_2D",
                         image_out_tag = "3D_PCA")
 
-# pynpoint
 Large_image = AddLinesModule(lines = (20,20,20,20),
                                 name_in = "Large_image",
                                 image_in_tag = "3D_PCA",
@@ -215,13 +185,12 @@ CrossCorr = CrossCorrelationModule(name_in = "CrossCorr",
                          image_in_tag="CC_cube",
                          snr_out_tag="snr_CC")
 '''
-# pynpoint
+
 Write_output = FitsWritingModule(name_in = "Write_output",
                                  file_name = "CC_cube.fits",
                                  output_dir = output_place_in,
                                  data_tag = "CC_cube")
 
-# pynpoint
 Write_output_text = TextWritingModule(name_in = "Write_output_text",
                                  file_name = "stellar_spectrum.txt",
                                  output_dir = output_place_in,

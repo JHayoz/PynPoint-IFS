@@ -23,7 +23,7 @@ class NanFilterModule(ProcessingModule):
     """
     
     __author__ = 'Gabriele Cugno'
-    
+
     @typechecked
     def __init__(self,
                  name_in: str = "Substitute_NaNs",
@@ -40,7 +40,7 @@ class NanFilterModule(ProcessingModule):
             :param image_out_tag: Tag of the database entry that is written as output. Should be
             different from *image_in_tag*.
             :type image_out_tag: str
-            :param loacl: Boolean to decide if the substitution occurs with the median of the image or with the median estimated from the surrounding pixels.
+            :param local: Boolean to decide if the substitution occurs with the median of the image or with the median estimated from the surrounding pixels.
             :type local: bool
             
             :return: None
@@ -63,8 +63,8 @@ class NanFilterModule(ProcessingModule):
 
         print("hey")
 
-        def clean_NaNs(image):
-            
+        def clean_NaNs(image,img):
+
             size0=np.shape(image)[0]
             size1=np.shape(image)[1]
             if self.m_local:
@@ -78,17 +78,18 @@ class NanFilterModule(ProcessingModule):
                             image[i,j]= im_new[i,j]
                         else:
                             image[i,j]= im_new
-            
+
+
             return image
-        
-        
+
+
         self.apply_function_to_images(clean_NaNs,
                                       self.m_image_in_port,
                                       self.m_image_out_port,
                                       "Running NanFilterModule...")
-            
-                                      
-                                      
+
+
+
         self.m_image_out_port.copy_attributes(self.m_image_in_port)
         self.m_image_out_port.add_history("NaN removed", "sub with mean ")
         self.m_image_out_port.close_port()
