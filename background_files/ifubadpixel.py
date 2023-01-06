@@ -12,7 +12,7 @@ import numpy as np
 
 from numba import jit
 from typeguard import typechecked
-from scipy.ndimage.filters import generic_filter
+from scipy.ndimage import generic_filter
 
 from pynpoint.core.processing import ProcessingModule
 
@@ -52,8 +52,8 @@ class NanFilterModule(ProcessingModule):
         self.m_image_out_port = self.add_output_port(image_out_tag)
         
         self.m_local = local
-    
-    
+
+
     def run(self):
         """
             Run method of the module. Look for NaNs and substitute them.
@@ -61,16 +61,16 @@ class NanFilterModule(ProcessingModule):
             :return: None
             """
 
+
         print("hey")
 
-        def clean_NaNs(image,img):
-
-            size0=np.shape(image)[0]
-            size1=np.shape(image)[1]
+        def clean_NaNs(image, ind):
+            size0=np.shape(image)[0] # 3rd dim
+            size1=np.shape(image)[1] #  x or y axis
             if self.m_local:
-                im_new = generic_filter(image, np.nanmedian, size=3)
+                im_new = generic_filter(image, np.nanmedian, size=3) # if local = true, we replace the pixel with the median of the surrounding pixels
             else:
-                im_new = np.nanmedian(image)
+                im_new = np.nanmedian(image) # if local = false
             for i in range(size0):
                 for j in range(size1):
                     if not np.isfinite(image[i,j]):

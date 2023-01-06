@@ -25,7 +25,7 @@ from pynpoint import Pypeline, FitsReadingModule, FitCenterModule, RemoveLinesMo
 
 # Define Directories
 working_place_in = "/home/ipa/quanz/user_accounts/egarvin/IFS_pipeline/30_data/betapic/sinfoni_Kband/working_place/"
-input_place_in = "/home/ipa/quanz/user_accounts/egarvin/IFS_pipeline/30_data/betapic/sinfoni_Kband/science_test/" #input_place
+input_place_in = "/home/ipa/quanz/user_accounts/egarvin/IFS_pipeline/30_data/betapic/sinfoni_Kband/input_place" #science_test/ #input_place
 output_place_in = "/home/ipa/quanz/user_accounts/egarvin/IFS_pipeline/30_data/betapic/sinfoni_Kband/output_place/"
 # pipeline.get_data("snr_CC")
 
@@ -36,7 +36,9 @@ pipeline = Pypeline(working_place_in, input_place_in, output_place_in)
 Import_Science = FitsReadingModule(name_in = "Import_Science",
                                    input_dir = input_place_in,
                                    image_tag = "initial_spectrum",
-                                   check=True
+                                   check=True,
+                                   #ifs_data=True,
+                                   overwrite=True
                                    )
 
 pipeline.add_module(Import_Science)
@@ -49,19 +51,25 @@ Select_range = SelectWavelengthRangeModule(range_f = (2.088, 2.452),
                                            image_out_tag = "spectrum_selected",
                                            wv_out_tag = "wavelength_range"
                                            )
+
 pipeline.add_module(Select_range)
 pipeline.run_module("Select_range")
-pipeline.get_data("spectrum_selected")
+dt=pipeline.get_data("spectrum_selected")
 pipeline.get_data("wavelength_range")
 
 
+## Test this by injecting nans and recovering the data? dt[3,30,40]=np.nan
+
+
 Substitute_NaNs = NanFilterModule(name_in = "Substitute_NaNs",
-                                       image_in_tag = "spectrum_selected",
-                                       image_out_tag = "spectrum_NaN")
+                                    image_in_tag = "spectrum_selected",
+                                    image_out_tag = "spectrum_NaN",
+                                    local=True
+                                  )
 
 pipeline.add_module(Substitute_NaNs)
 pipeline.run_module("Substitute_NaNs")
-pipeline.get_data("spectrum_NaN")
+dtnew=pipeline.get_data("spectrum_NaN")
 
 # pynpoint
 Small_image = RemoveLinesModule(lines = (4,4,4,4),
