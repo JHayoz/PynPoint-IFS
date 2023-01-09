@@ -136,6 +136,8 @@ pipeline.get_shape('spectrum_NaN_small')[0]
 
 
 pipeline.get_data("cubes_aligned")
+pipeline.list_attributes('cubes_aligned')
+## Stopped here. correction to IFUAlignCubesModule. Is the output actually correct?
 
 Centering_test = FitCenterModule(name_in = "Centering_test",
                                   image_in_tag = "cubes_aligned",
@@ -145,7 +147,7 @@ Centering_test = FitCenterModule(name_in = "Centering_test",
                                   guess=(0.5,0.2,3.,3.,5000,0.,0.))
 
 pipeline.add_module(Centering_test)
-pipeline.run_module(Centering_test)
+pipeline.run_module("Centering_test")
 pipeline.get_data("initial_spectrum")
 
 # pynpoint

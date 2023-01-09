@@ -109,6 +109,7 @@ class IFUAlignCubesModule(ProcessingModule):
             
         nframes = self.m_image_in_port.get_attribute("NFRAMES")
         size = self.m_image_in_port.get_shape()[1]
+        print(self.m_image_in_port.get_shape())
             
         shift_all_xy = -1.*self.m_shift_all_in_port[:, [0, 2]]
         shift_cubes_xy = -1.*self.m_shift_cube_in_port[:, [0, 2]]
@@ -120,9 +121,10 @@ class IFUAlignCubesModule(ProcessingModule):
             shift_y_i = _clean_shifts(shift_xy_i[:, 1], self.m_precision, i)
             shift_x_i = _clean_shifts(shift_xy_i[:, 0],self.m_precision, i)
             for j in range(nframes_i):
-                im = _image_shift(self.m_image_in_port[i*nframes_i+j],(shift_y_i[j], shift_x_i[j]),self.m_interpolation)
+                #im = _image_shift(self.m_image_in_port[i*nframes_i+j],(shift_y_i[j], shift_x_i[j]),self.m_interpolation) # temp modif to remove error.
+                im = _image_shift(self.m_image_in_port[i*nframes_i+j,:,:],(shift_y_i[j], shift_x_i[j]),self.m_interpolation)
                 self.m_image_out_port.append(im.reshape(1,size, size))
-                        
+
                             
                             
         self.m_image_out_port.copy_attributes(self.m_image_in_port)
