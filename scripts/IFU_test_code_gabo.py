@@ -25,7 +25,7 @@ from pynpoint import Pypeline, FitsReadingModule, FitCenterModule, RemoveLinesMo
 
 # Define Directories
 working_place_in = "/home/ipa/quanz/user_accounts/egarvin/IFS_pipeline/30_data/betapic/sinfoni_Kband/working_place/"
-input_place_in = "/home/ipa/quanz/user_accounts/egarvin/IFS_pipeline/30_data/betapic/sinfoni_Kband/input_place" #science_test/ #input_place
+input_place_in = "/home/ipa/quanz/user_accounts/egarvin/IFS_pipeline/30_data/betapic/sinfoni_Kband/science_test" #science_test/ #input_place
 output_place_in = "/home/ipa/quanz/user_accounts/egarvin/IFS_pipeline/30_data/betapic/sinfoni_Kband/output_place/"
 # pipeline.get_data("snr_CC")
 
@@ -78,7 +78,7 @@ Small_image = RemoveLinesModule(lines = (4,4,4,4),
                              image_out_tag = "spectrum_NaN_small")
 
 pipeline.add_module(Small_image)
-pipeline.run_module(Small_image)
+pipeline.run_module("Enlarge_image")
 pipeline.get_data("spectrum_NaN_small")
 
 # pynpoint
@@ -89,7 +89,7 @@ Centering_all = FitCenterModule(name_in = "Centering_all",
                                 radius = 1.0)
 
 pipeline.add_module(Centering_all)
-pipeline.run_module(Centering_all)
+pipeline.run_module("Centering_all")
 pipeline.get_data("centering_all")
 
 
@@ -101,15 +101,22 @@ Coadd_cubes = StackCubesModule(name_in= "Coadd_cubes",
 
 
 
-pipeline.add_module(Import_Science)
-pipeline.run_module(Import_Science)
-pipeline.get_data("initial_spectrum")
+pipeline.add_module(Coadd_cubes)
+pipeline.run_module("Coadd_cubes")
+pipeline.get_data("coadded_cubes")
+## until here.
+
 
 Centering_cubes = FitCenterModule(name_in = "Centering_cubes",
                                 image_in_tag = "coadded_cubes",
                                 method='full',
                                 fit_out_tag='centering_cubes',
                                 radius = 1.0)
+
+
+pipeline.add_module(Centering_cubes)
+pipeline.run_module("Centering_cubes")
+pipeline.get_data("centering_cubes")
 
 Shift_no_center = IFUAlignCubesModule(precision=0.02,
                                       shift_all_in_tag= "centering_all",
@@ -119,8 +126,16 @@ Shift_no_center = IFUAlignCubesModule(precision=0.02,
                                        image_in_tag="spectrum_NaN_small",
                                        image_out_tag="cubes_aligned")
 pipeline.add_module(Shift_no_center)
-pipeline.run_module(Shift_no_center)
-pipeline.get_data("initial_spectrum")
+pipeline.run_module("shift_no_center")
+
+call = pipeline.get_data("centering_all")
+ccubes = pipeline.get_data("centering_cubes")
+dtimage = pipeline.get_data("spectrum_NaN_small")
+pipeline.list_attributes('spectrum_NaN_small')
+pipeline.get_shape('spectrum_NaN_small')[0]
+
+
+pipeline.get_data("cubes_aligned")
 
 Centering_test = FitCenterModule(name_in = "Centering_test",
                                   image_in_tag = "cubes_aligned",
