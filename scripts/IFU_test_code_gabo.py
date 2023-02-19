@@ -133,8 +133,6 @@ ccubes = pipeline.get_data("centering_cubes")
 dtimage = pipeline.get_data("spectrum_NaN_small")
 pipeline.list_attributes('spectrum_NaN_small')
 pipeline.get_shape('spectrum_NaN_small')[0]
-
-
 pipeline.get_data("cubes_aligned")
 pipeline.list_attributes('cubes_aligned')
 ## Stopped here. correction to IFUAlignCubesModule. Is the output actually correct?
@@ -148,7 +146,7 @@ Centering_test = FitCenterModule(name_in = "Centering_test",
 
 pipeline.add_module(Centering_test)
 pipeline.run_module("Centering_test")
-pipeline.get_data("initial_spectrum")
+pipeline.get_data("centering_test")
 
 # pynpoint
 bp = BadPixelSigmaFilterModule(name_in='bp',
@@ -160,8 +158,8 @@ bp = BadPixelSigmaFilterModule(name_in='bp',
                                iterate=4)
 
 pipeline.add_module(bp)
-pipeline.run_module(bp)
-pipeline.get_data("initial_spectrum")
+pipeline.run_module('bp')
+pipeline.get_data("cubes_bp")
 
 star_master = IFUStellarSpectrumModule(name_in="star_master",
                                        image_in_tag="cubes_aligned",
@@ -170,20 +168,21 @@ star_master = IFUStellarSpectrumModule(name_in="star_master",
                                        num_pix = 10,
                                        std_max = 0.1)
 pipeline.add_module(star_master)
-pipeline.run_module(star_master)
-pipeline.get_data("initial_spectrum")
+pipeline.run_module("star_master")
+pipeline.get_data("stellar_spectrum")
 
 master_sub = IFUPSFSubtractionModule(name_in = "master_sub",
                                      image_in_tag="cubes_aligned",
-                                     stellar_spectra_in_tag = "stellar_spectrum",
+                                     #stellar_spectra_in_tag = "stellar_spectrum",
                                      image_out_tag = "PSF_sub",
-                                     gauss_sigma=10,
+                                     #gauss_sigma=10,
                                      sigma=2.,
-                                     iteration = 2)
+                                     #iteration = 2
+                                     )
 
 pipeline.add_module(master_sub)
-pipeline.run_module(master_sub)
-pipeline.get_data("initial_spectrum")
+pipeline.run_module("master_sub")
+pipeline.get_data("PSF_sub")
 
 # pynpoint
 parang = ParangReadingModule(file_name = 'parang.txt',
@@ -193,12 +192,16 @@ parang = ParangReadingModule(file_name = 'parang.txt',
                              data_tag = "PSF_sub")
 
 pipeline.add_module(parang)
-pipeline.run_module(parang)
-pipeline.get_data("initial_spectrum")
+pipeline.run_module("parang")
+pipeline.get_data("PSF_sub")
 
 Folding = FoldingModule(name_in="Folding",
                         image_in_tag="PSF_sub",
                         image_out_tag = "im_2D")
+
+pipeline.add_module(Folding)
+pipeline.run_module("Folding")
+pipeline.get_data("im_2D") # next bug is here. 
 
 PCA = IFUResidualsPCAModule(pc_number = 3,
                             name_in="PCA",

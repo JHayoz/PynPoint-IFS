@@ -7,7 +7,7 @@ import time
 import math
 import warnings
 import copy
-from scipy.ndimage.filters import generic_filter
+from scipy.ndimage import generic_filter
 from scipy.signal import medfilt
 
 from typing import Union, Tuple
