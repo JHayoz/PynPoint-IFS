@@ -201,7 +201,7 @@ Folding = FoldingModule(name_in="Folding",
 
 pipeline.add_module(Folding)
 pipeline.run_module("Folding")
-pipeline.get_data("im_2D") # next bug is here. 
+pipeline.get_data("im_2D") # next bug is here.
 
 PCA = IFUResidualsPCAModule(pc_number = 3,
                             name_in="PCA",
