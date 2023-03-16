@@ -68,14 +68,14 @@ class IFUAlignCubesModule(ProcessingModule):
         self.m_interpolation = interpolation
         self.m_precision = precision
 
-        m_image_in_port = image_in_tag
-        m_shift_all_in_port = shift_all_in_tag
-        m_shift_cube_in_port = shift_cube_in_tag
+        #m_image_in_port = image_in_tag
+        #m_shift_all_in_port = shift_all_in_tag
+        #m_shift_cube_in_port = shift_cube_in_tag
 
-        m_image_out_port = image_out_tag
+        #m_image_out_port = image_out_tag
 
-        m_interpolation = interpolation
-        m_precision = precision
+        #m_interpolation = interpolation
+        #m_precision = precision
     
     
     def run(self):
@@ -101,7 +101,7 @@ class IFUAlignCubesModule(ProcessingModule):
             shift_temp = copy.copy(shift_arr)
             
             count=0
-            while max_>precision and count<m_image_in_port.shape[1]:
+            while max_>precision and count< self.m_image_in_port.shape[1]:
                 filter_shift = medfilt(shift_temp, 101)
                 
                 for i in range(len(x)):
@@ -122,19 +122,19 @@ class IFUAlignCubesModule(ProcessingModule):
         #size = self.m_image_in_port.get_shape()[1]
         size = 56
             
-        shift_all_xy = -1.*m_shift_all_in_port[:, [0, 2]]
+        shift_all_xy = -1.*self.m_shift_all_in_port[:, [0, 2]]
 
-        shift_cubes_xy = -1.*m_shift_cube_in_port[:, [0, 2]]
+        shift_cubes_xy = -1.*self.m_shift_cube_in_port[:, [0, 2]]
 
         iminport=[]
         start_time = time.time()
         for i, nframes_i in enumerate(nframes):
             progress(i, len(nframes), 'Running IFUAlignCubesModule...', start_time)
             shift_xy_i = shift_all_xy[i*nframes_i:(i+1)*nframes_i]-shift_cubes_xy[i] ###
-            shift_y_i = clean_shifts(shift_xy_i[:, 1], m_precision, i)
-            shift_x_i = clean_shifts(shift_xy_i[:, 0],m_precision, i)
+            shift_y_i = clean_shifts(shift_xy_i[:, 1], self.m_precision, i)
+            shift_x_i = clean_shifts(shift_xy_i[:, 0],self.m_precision, i)
             for j in range(nframes_i):
-                im = image_shift(m_image_in_port[i*nframes_i+j],(shift_y_i[j], shift_x_i[j]),m_interpolation) ## here it tries to enter an array in second position instead of tuple?
+                im = image_shift(self.m_image_in_port[i*nframes_i+j],(shift_y_i[j], shift_x_i[j]),self.m_interpolation) ## here it tries to enter an array in second position instead of tuple?
                 iminport.append(im.reshape(1,size, size))
 
         m_image_out_port = iminport
