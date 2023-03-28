@@ -91,6 +91,7 @@ Centering_all = FitCenterModule(name_in = "Centering_all",
 pipeline.add_module(Centering_all)
 pipeline.run_module("Centering_all")
 pipeline.get_data("centering_all")
+dt_tst = pipeline.get_data("centering_all")
 
 
 # pynpoint
@@ -104,6 +105,7 @@ Coadd_cubes = StackCubesModule(name_in= "Coadd_cubes",
 pipeline.add_module(Coadd_cubes)
 pipeline.run_module("Coadd_cubes")
 pipeline.get_data("coadded_cubes")
+test_coadd_cubes = pipeline.get_data("coadded_cubes")
 ## until here.
 
 
@@ -117,6 +119,8 @@ Centering_cubes = FitCenterModule(name_in = "Centering_cubes",
 pipeline.add_module(Centering_cubes)
 pipeline.run_module("Centering_cubes")
 pipeline.get_data("centering_cubes")
+dt_centering_test = pipeline.get_data("centering_cubes")
+
 
 Shift_no_center = IFUAlignCubesModule(precision=0.02,
                                       shift_all_in_tag= "centering_all",
@@ -133,7 +137,7 @@ ccubes = pipeline.get_data("centering_cubes")
 dtimage = pipeline.get_data("spectrum_NaN_small")
 pipeline.list_attributes('spectrum_NaN_small')
 pipeline.get_shape('spectrum_NaN_small')[0]
-pipeline.get_data("cubes_aligned")
+dt_cubes_aligned = pipeline.get_data("cubes_aligned")
 pipeline.list_attributes('cubes_aligned')
 ## Stopped here. correction to IFUAlignCubesModule. Is the output actually correct?
 
@@ -171,6 +175,8 @@ pipeline.add_module(star_master)
 pipeline.run_module("star_master")
 pipeline.get_data("stellar_spectrum")
 
+
+## bugs here!!!
 master_sub = IFUPSFSubtractionModule(name_in = "master_sub",
                                      image_in_tag="cubes_aligned",
                                      #stellar_spectra_in_tag = "stellar_spectrum",
