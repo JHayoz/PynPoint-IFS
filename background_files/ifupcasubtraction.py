@@ -22,35 +22,37 @@ from sklearn.decomposition import PCA
 
 class IFUResidualsPCAModule(ProcessingModule):
     """
-        Module to eliminate regions of the spectrum.
-        """
+    Module to eliminate regions of the spectrum.
+    """
     __author__ = 'Gabriele Cugno'
     
     @typechecked
-    def __init__(self,
-                 pc_number: int,
-                 name_in: str = "pca_sub",
-                 image_in_tag: str = "im_2D",
-                 image_out_tag: str = "im_2D_PCA",
-                 model_out_tag: str = "PCA_model"):
+    def __init__(
+        self,
+        pc_number: int,
+        name_in: str = "pca_sub",
+        image_in_tag: str = "im_2D",
+        image_out_tag: str = "im_2D_PCA",
+        model_out_tag: str = "PCA_model"
+    ) -> None:
         """
-            Constructor of IFUResidualsPCAModule.
-            
-            :param pc_number: number of removed principal components
-            :type pc_number: int
-            :param name_in: Unique name of the module instance.
-            :type name_in: str
-            :param image_in_tag: Tag of the database entry that is read as input.
-            :type image_in_tag: str
-            :param image_out_tag: Tag of the database entry that is written as output. Should be
-            different from *image_in_tag*.
-            :type image_out_tag: str
-            :param model_out_tag: Tag of the database entry that is written as output. Should be
-            different from *image_in_tag*.
-            :type model_out_tag: str
-            
-            :return: None
-            """
+        Constructor of IFUResidualsPCAModule.
+        
+        :param pc_number: number of removed principal components
+        :type pc_number: int
+        :param name_in: Unique name of the module instance.
+        :type name_in: str
+        :param image_in_tag: Tag of the database entry that is read as input.
+        :type image_in_tag: str
+        :param image_out_tag: Tag of the database entry that is written as output. Should be
+        different from *image_in_tag*.
+        :type image_out_tag: str
+        :param model_out_tag: Tag of the database entry that is written as output. Should be
+        different from *image_in_tag*.
+        :type model_out_tag: str
+        
+        :return: None
+        """
         
         super(IFUResidualsPCAModule, self).__init__(name_in)
         
@@ -62,10 +64,10 @@ class IFUResidualsPCAModule(ProcessingModule):
     
     def run(self):
         """
-            Run method of the module. Applies PCA to the images.
-            
-            :return: None
-            """
+        Run method of the module. Applies PCA to the images.
+        
+        :return: None
+        """
 
         nim = self.m_image_in_port.get_shape()[0]
         im_shape = self.m_image_in_port.get_shape()

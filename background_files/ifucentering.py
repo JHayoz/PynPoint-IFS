@@ -22,8 +22,8 @@ from pynpoint.util.image import shift_image
 
 class IFUAlignCubesModule(ProcessingModule):
     """
-        Module to align the central star within each cube.
-        """
+    Module to align the central star within each cube.
+    """
     __author__ = 'Gabriele Cugno'
     
     @typechecked

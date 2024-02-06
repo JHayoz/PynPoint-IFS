@@ -88,7 +88,7 @@ class CrossCorrelationModule(ProcessingModule):
         
         nspectrum = self.m_image_in_port.get_attribute("NFRAMES")
         pixscale = self.m_image_in_port.get_attribute("PIXSCALE")
-        size = self.m_image_in_port.get_shape()[-1]
+        len_wvl,len_x,len_y = self.m_image_in_port.get_shape()
         
         wv = self.m_data_wv_in_port.get_all()
         mask = self.m_mask_in_port.get_all()
@@ -106,15 +106,15 @@ class CrossCorrelationModule(ProcessingModule):
             return cc, rv[np.argmax(cc)], snr
         
         
-        CC_cube = np.zeros((int(2*self.m_RV/self.m_dRV+1), size, size))
-        rv = np.zeros((size, size))
-        snr = np.zeros((size, size))
+        CC_cube = np.zeros((int(2*self.m_RV/self.m_dRV+1), len_x, len_y))
+        rv = np.zeros((len_x, len_y))
+        snr = np.zeros((len_x, len_y))
         
         start_time = time.time()
-        for i in range(size):
-            for j in range(size):
-                progress(i*size+j, size**2, 'Running CrossCorrelationModule...', start_time)
-                if mask[0,i,j]!=0:
+        for i in range(len_x):
+            for j in range(len_y):
+                progress(i*len_y+j, len_x*len_x, 'Running CrossCorrelationModule...', start_time)
+                if mask[i,j]!=0:
                     CC_cube_prov, rv[i,j], snr[i,j] = _CC(wv, CC_prep[:,i,j], self.m_wv_model, self.m_abs_model)
                     CC_cube[:,i,j] = CC_cube_prov/np.sum(np.abs(CC_cube_prov))
         

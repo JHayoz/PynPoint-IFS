@@ -34,10 +34,11 @@ class IFUPSFSubtractionModule(ProcessingModule):
                  name_in: str = "Select_range",
                  image_in_tag: str = "initial_spectrum",
                  image_out_tag: str = "PSF_sub",
-                 #gauss_sigma: float = 10.,
+                 gauss_sigma: float = 10.,
                  sigma: Union[float, None] =6.,
                  savgol: Tuple[float, float] = (151,7),
-                 pc = 20):
+                 run_pca: bool = True,
+                 pc: int = 20):
         """
             Constructor of IFUPSFSubtractionModule.
             
@@ -63,10 +64,11 @@ class IFUPSFSubtractionModule(ProcessingModule):
         self.m_image_in_port = self.add_input_port(image_in_tag)
         self.m_image_out_port = self.add_output_port(image_out_tag)
         
-        #self.m_gauss_sigma = gauss_sigma
+        self.m_gauss_sigma = gauss_sigma
         self.m_sigma = sigma
         self.m_savgol = savgol
         self.m_pc = pc
+        self.m_run_pca = run_pca
     
     def run(self):
         """
@@ -84,13 +86,17 @@ class IFUPSFSubtractionModule(ProcessingModule):
             return spectrum2
         
         def PC_analysis(cube, pc):
-            pix_list = []
+            
             size_f = np.shape(cube)[1]
-            for i in range(size_f):
-                for j in range(size_f):
-                    pix_list.append(cube[:,i,j]-np.mean(cube[:,i,j]))
+            psf = np.mean(cube,axis=0)
+            res = cube - psf
+            pix_list = np.transpose(res.reshape((len(cube),-1)))
+            #pix_list = []
+            #for i in range(size_f):
+            #    for j in range(size_f):
+            #        pix_list.append(cube[:,i,j]-np.mean(cube[:,i,j]))
 
-            pix_list = np.array(pix_list)
+            #pix_list = np.array(pix_list)
 
             pca_sklearn = PCA(n_components=pc, svd_solver="arpack")
             pca_sklearn.fit(pix_list)
@@ -128,10 +134,10 @@ class IFUPSFSubtractionModule(ProcessingModule):
             for i in range(size):
                 for j in range(size):
                     if self.m_sigma is None:
-                        cube_norm[:,i,j] = cube_init[:,i,j]/np.nansum(np.abs(cube_init[:,i,j]), axis=0)
+                        cube_norm[:,i,j] = np.where(cube_init[:,i,j]!=0,cube_init[:,i,j]/np.nansum(np.abs(cube_init[:,i,j]), axis=0),cube_init[:,i,j])
                     else:
                         cube_outliers[:,i,j] = find_outliers_sub(cube_init[:,i,j], self.m_sigma)
-                        cube_norm[:,i,j] = cube_outliers[:,i,j]/np.nansum(np.abs(cube_outliers[:,i,j]), axis=0)
+                        cube_norm[:,i,j] = np.where(cube_outliers[:,i,j]!=0,cube_outliers[:,i,j]/np.nansum(np.abs(cube_outliers[:,i,j]), axis=0),cube_outliers[:,i,j])
                     list_spectra.append(cube_norm[:,i,j])
 
             list_spectra = np.array(list_spectra)
@@ -155,11 +161,12 @@ class IFUPSFSubtractionModule(ProcessingModule):
                     low_pass_cube[:,i,j] = spectrum_smooth[:,i,j]*reference_spectrum
             
             cube_star_sub = cube_norm - low_pass_cube
-
-            # Apply PCA on image
-            cube_pca, model_pca = PC_analysis(cube_star_sub, self.m_pc)
-        
-            self.m_image_out_port.append(cube_pca)
+            if self.m_run_pca:
+                # Apply PCA on image
+                cube_pca, model_pca = PC_analysis(cube_star_sub, self.m_pc)
+                self.m_image_out_port.append(cube_pca)
+            else:
+                self.m_image_out_port.append(cube_star_sub)
 
         
         self.m_image_out_port.copy_attributes(self.m_image_in_port)

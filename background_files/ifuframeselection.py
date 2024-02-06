@@ -25,32 +25,34 @@ class SelectWavelengthRangeModule(ProcessingModule):
     __author__ = 'Gabriele Cugno'
     
     @typechecked
-    def __init__(self,
-                 range_f: Tuple[float, float],
-                 range_i: Tuple[float, float] = (1.92854,2.47171),
-                 name_in: str = "Select_range",
-                 image_in_tag: str = "initial_spectrum",
-                 image_out_tag: str = "spectrum_selected",
-                 wv_out_tag: str = "wavelengths"):
+    def __init__(
+        self,
+        range_f: Tuple[float, float],
+        range_i: Tuple[float, float] = (1.92854,2.47171),
+        name_in: str = "Select_range",
+        image_in_tag: str = "initial_spectrum",
+        image_out_tag: str = "spectrum_selected",
+        wv_out_tag: str = "wavelengths"
+    ) -> None:
         """
-            Constructor of SelectWavelengthRangeModule.
-            
-            :param range_f: final wavelegth range for the selected frames
-            :type range_f: tuple(float,float)
-            :param range_i: initial wavelegth range for the cube
-            :type range_i: tuple(float,float)
-            :param name_in: Unique name of the module instance.
-            :type name_in: str
-            :param image_in_tag: Tag of the database entry that is read as input.
-            :type image_in_tag: str
-            :param image_out_tag: Tag of the database entry that is written as output. Should be
-            different from *image_in_tag*.
-            :type image_out_tag: str
-            :param wv_out_tag: Tag of the database entry for the wavelength that is written as output. Should be different from *image_in_tag*.
-            :type wv_out_tag: str
-            
-            :return: None
-            """
+        Constructor of SelectWavelengthRangeModule.
+        
+        :param range_f: final wavelegth range for the selected frames
+        :type range_f: tuple(float,float)
+        :param range_i: initial wavelegth range for the cube
+        :type range_i: tuple(float,float)
+        :param name_in: Unique name of the module instance.
+        :type name_in: str
+        :param image_in_tag: Tag of the database entry that is read as input.
+        :type image_in_tag: str
+        :param image_out_tag: Tag of the database entry that is written as output. Should be
+        different from *image_in_tag*.
+        :type image_out_tag: str
+        :param wv_out_tag: Tag of the database entry for the wavelength that is written as output. Should be different from *image_in_tag*.
+        :type wv_out_tag: str
+        
+        :return: None
+        """
         
         super(SelectWavelengthRangeModule, self).__init__(name_in)
         
@@ -103,29 +105,33 @@ class SelectWavelengthRangeModule(ProcessingModule):
 
 class CorrectWavelengthModule(ProcessingModule):
     """
-        Module to select spectral channels based on the wavelength.
-        """
+    Module to dopplershift the wavelength axis
+    """
     
     __author__ = 'Gabriele Cugno'
     
     @typechecked
-    def __init__(self,
-                 name_in: str = "Correct_wl",
-                 wv_in_tag: str = "initial_spectrum",
-                 wv_out_tag: str = "spectrum_selected",
-                 shift_km_s = 0.):
+    def __init__(
+        self,
+        name_in: str = "Correct_wl",
+        wv_in_tag: str = "initial_spectrum",
+        wv_out_tag: str = "spectrum_selected",
+        shift_km_s: float = 0.
+    ) -> None:
         """
-            Constructor of CorrectWavelengthModule.
-            
-            :param name_in: Unique name of the module instance.
-            :type name_in: str
-            :param wv_in_tag: Tag of the database entry that is read as input.
-            :type wv_in_tag: str
-            :param wv_out_tag: Tag of the database entry for the wavelength that is written as output. Should be different from *image_in_tag*.
-            :type wv_out_tag: str
-            
-            :return: None
-            """
+        Constructor of CorrectWavelengthModule.
+        
+        :param name_in: Unique name of the module instance.
+        :type name_in: str
+        :param wv_in_tag: Tag of the database entry that is read as input.
+        :type wv_in_tag: str
+        :param wv_out_tag: Tag of the database entry for the wavelength that is written as output. Should be different from *image_in_tag*.
+        :type wv_out_tag: str
+        :param shift_km_s: Radial velocity by which the wavelength axis should be Doppler-shifted.
+        :type shift_km_s: float
+        
+        :return: None
+        """
         
         super(CorrectWavelengthModule, self).__init__(name_in)
         
@@ -137,10 +143,10 @@ class CorrectWavelengthModule(ProcessingModule):
     
     def run(self):
         """
-            Run method of the module. Convolves the images with a Gaussian kernel.
-            
-            :return: None
-            """
+        Run method of the module. Convolves the images with a Gaussian kernel.
+        
+        :return: None
+        """
         
         wv = self.m_wv_in_port.get_all()
         
