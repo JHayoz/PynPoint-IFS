@@ -9,6 +9,7 @@ import warnings
 import copy
 
 from typing import Union, Tuple
+from joblib import Parallel, delayed
 
 import numpy as np
 
@@ -19,6 +20,90 @@ from pynpoint.util.module import progress
 from pynpoint.util.image import shift_image, rotate
 from .ifu_utils import select_cubes
 
+from photutils.aperture import CircularAperture
+from photutils.aperture import aperture_photometry
+
+from background_files.ifuprocessingfunctions import do_PCA_sub,do_derotate_shift
+
+class ApertureCombineModule(ProcessingModule):
+    """
+    Module to bin together spectral channels.
+    """
+    __author__ = 'Jean Hayoz'
+    
+    @typechecked
+    def __init__(
+        self,
+        name_in: str = 'aperture_combine',
+        image_in_tag: str = 'raw',
+        image_out_tag: str = 'aperture_combined',
+        aperture_radius: float = 1.4,
+        cpus: int = 1
+    ):
+        """
+        Constructor of ApertureCombineModule.
+        
+        :param name_in: Unique name of the module instance.
+        :type name_in: str
+        :param image_in_tag: Tag of the database entry that is read as input.
+        :type image_in_tag: str
+        :param wv_in_tag: Tag of the database entry that is read as input.
+        :type wv_in_tag: str
+        :param image_root_out_tag: Tag of the database entry that is written as output. Should be
+        different from *image_in_tag*.
+        :type image_root_out_tag: str
+        :param wv_out_tag: Tag of the database entry that is written as output.
+        :type wv_out_tag: str
+        :param combine: method used to combine the frames
+        :type combine: str
+        
+        :return: None
+        """
+        
+        super(ApertureCombineModule, self).__init__(name_in)
+        
+        self.m_image_in_port = self.add_input_port(image_in_tag)
+        self.m_image_out_port = self.add_output_port(image_out_tag)
+        self.m_aperture_radius = aperture_radius
+        self.m_cpus = cpus
+    
+    def run(self):
+        """
+        Run method of the module. Combines the frames of the cubes.
+            
+        :return: None
+        """
+        def calculate_photometry(apertures,image):
+            return apertures.do_photometry(image)[0]
+        
+        nspectrum = self.m_image_in_port.get_attribute("NFRAMES")
+        lencube,lenx,leny = self.m_image_in_port.get_shape()
+        X,Y = np.meshgrid(np.arange(leny),np.arange(lenx))
+        coordinates = np.dstack([X,Y])
+        coordinates_flat = coordinates.reshape((-1,2))
+        nb_apertures = len(coordinates_flat)
+        apertures = CircularAperture(coordinates_flat,self.m_aperture_radius)
+        start_time = time.time()
+        if self.m_cpus > 1:
+            print('Running ApertureCombineModule in parallel...')
+            photometry_apertures = Parallel(n_jobs=self.m_cpus,verbose=2)(delayed(calculate_photometry)(
+                apertures=apertures, image=self.m_image_in_port[i:i+1,:,:][0]) for i in range(lencube))
+            datacube_photometry = np.array(photometry_apertures).reshape((-1,lenx,leny))
+            self.m_image_out_port.set_all(datacube_photometry)
+        else:
+            for i, nspectrum_i in enumerate(nspectrum):
+                
+                cube = self.m_image_in_port[i*nspectrum_i:(i+1)*nspectrum_i,:,:]
+                lenwvl = len(cube)
+                photometry_apertures = np.zeros((lenwvl,nb_apertures))
+                for wvl_i in range(lenwvl):
+                    progress(i*lenwvl + wvl_i, len(nspectrum)*lenwvl, 'Running ApertureCombineModule...', start_time)
+                    photometry_apertures[wvl_i,:] = apertures.do_photometry(cube[wvl_i])[0]
+                datacube_photometry = photometry_apertures.reshape((-1,lenx,leny))
+                self.m_image_out_port.append(datacube_photometry)
+        
+        self.m_image_out_port.add_history("Aperture combined", "radius = %.2f" % self.m_aperture_radius)
+        self.m_image_out_port.close_port()
 
 
 class CrossCorrelationPreparationModule(ProcessingModule):
@@ -123,32 +208,12 @@ class CrossCorrelationPreparationModule(ProcessingModule):
             progress(i, len(nspectrum), 'Running CrossCorrelationPreparationModule...', start_time)
             
             cube_init = self.m_image_in_port[i*nspectrum_i:(i+1)*nspectrum_i,:,:]
-            
-            mask_arr[i] = np.where(cube_init[0]==np.nan, False, True)
-            print('NaNs in the cube: %i' % np.sum(mask_arr[i]))
-            if self.m_shift:
-                mask_arr_shift[i] = shift_image(mask_arr[i], (-shift[i][0], -shift[i][1]), "spline")
-            else:
-                mask_arr_shift[i] = copy.copy(mask_arr[i])
-            
-            if self.m_rotate:
-                mask_arr_rot[i] = rotate(mask_arr_shift[i], -parang[i], reshape=False)
-            else:
-                mask_arr_rot[i] = copy.copy(mask_arr_shift[i])
-            print('NaNs in the cube after shift: %i' % np.sum(mask_arr_rot[i]))
-            cube_shift = np.zeros_like(cube_init)
-            cube_rot = np.zeros_like(cube_init)
-            for k in range(nspectrum_i):
-                if self.m_shift:
-                    cube_shift[k] = shift_image(cube_init[k], (-shift[i][0], -shift[i][1]), "spline")
-                else:
-                    cube_shift[k] = copy.copy(cube_init[k])
-                
-                if self.m_rotate:
-                    cube_rot[k] = rotate(cube_shift[k], -parang[i], reshape=False)
-                else:
-                    cube_rot[k] = copy.copy(cube_shift[k])
-    
+            cube_rot,mask_arr_rot[i] = do_derotate_shift(
+                cube=cube_init,
+                shift=self.m_shift,
+                shift_vector=shift[i],
+                derotate=self.m_rotate,
+                derotate_angle=parang[i])
             final_cube.append(cube_rot)
         
         final_cube = np.array(final_cube)
@@ -166,12 +231,12 @@ class CrossCorrelationPreparationModule(ProcessingModule):
                 cube_wv = final_cube[:,k,:,:]
                 if self.m_combine == 'median':
                     combined_cube = np.nanmedian(cube_wv, axis=0)
-                    # cube_median.append(np.where(mask_final, combined_cube, np.nan))
-                    cube_median.append(combined_cube)
+                    cube_median.append(np.where(mask_final, combined_cube, np.nan))
+                    # cube_median.append(combined_cube)
                 elif self.m_combine == 'mean':
                     combined_cube = np.nanmean(cube_wv, axis=0)
-                    # cube_median.append(np.where(mask_final, combined_cube, np.nan))
-                    cube_median.append(combined_cube)
+                    cube_median.append(np.where(mask_final, combined_cube, np.nan))
+                    # cube_median.append(combined_cube)
                 elif self.m_combine == 'combine':
                     n_samples = np.sum(mask_arr_shift,axis=0)
                     n_samples_corr = np.where(n_samples != 0, n_samples, 1)
@@ -179,8 +244,8 @@ class CrossCorrelationPreparationModule(ProcessingModule):
                     cube_median.append(combined_cube)
                 else:
                     combined_cube = np.nanmedian(cube_wv, axis=0)
-                    #cube_median.append(np.where(mask_final, combined_cube, np.nan))
-                    cube_median.append(combined_cube)
+                    cube_median.append(np.where(mask_final, combined_cube, np.nan))
+                    # cube_median.append(combined_cube)
                 
             cube_median = np.array(cube_median)
             self.m_image_out_port.set_all(cube_median)

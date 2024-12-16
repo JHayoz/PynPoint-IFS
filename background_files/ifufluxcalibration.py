@@ -116,17 +116,17 @@ def get_stellar_model(teff,logg,feh,wavelength):
     if np.sum(mask_param) == 1:
         (file_cold,T_cold) = stellar_model_params[mask_param].sort_values(by='Teff')[['FILE','Teff']].values[0]
         model_cold = pd.read_csv(file_cold)
-        model_cold_tmp = model_cold.drop(columns='Unnamed: 0').drop_duplicates()
-        wlen_model_cold,flux_model_cold = rebin(model_cold_tmp['wlen'].values,model_cold_tmp['flux'].values,wavelength,method='linear')
+        # model_cold_tmp = model_cold.drop(columns='Unnamed: 0').drop_duplicates()
+        wlen_model_cold,flux_model_cold = rebin(model_cold['wlen'].values,model_cold['flux'].values,wavelength,method='linear')
         return wlen_model_cold,flux_model_cold
     [(file_cold,T_cold),(file_hot,T_hot)] = stellar_model_params[mask_param].sort_values(by='Teff')[['FILE','Teff']].values[:2]
     print(T_cold,T_hot)
     model_cold = pd.read_csv(file_cold)
     model_hot = pd.read_csv(file_hot)
-    model_hot_tmp = model_hot.drop(columns='Unnamed: 0').drop_duplicates()
-    model_cold_tmp = model_cold.drop(columns='Unnamed: 0').drop_duplicates()
-    wlen_model_hot,flux_model_hot = rebin(model_hot_tmp['wlen'].values,model_hot_tmp['flux'].values,wavelength,method='linear')
-    wlen_model_cold,flux_model_cold = rebin(model_cold_tmp['wlen'].values,model_cold_tmp['flux'].values,wavelength,method='linear')
+    # model_hot_tmp = model_hot.drop(columns='Unnamed: 0').drop_duplicates()
+    # model_cold_tmp = model_cold.drop(columns='Unnamed: 0').drop_duplicates()
+    wlen_model_hot,flux_model_hot = rebin(model_hot['wlen'].values,model_hot['flux'].values,wavelength,method='linear')
+    wlen_model_cold,flux_model_cold = rebin(model_cold['wlen'].values,model_cold['flux'].values,wavelength,method='linear')
     mask_hot_overlap = np.isin(wlen_model_hot,wlen_model_cold)
     mask_cold_overlap = np.isin(wlen_model_cold,wlen_model_hot)
     #model_hot_tmp_interp = interp1d(x=wlen_model_hot,y=flux_model_hot)

@@ -28,7 +28,7 @@ class IFUBackgroundSubtractionModule(ProcessingModule):
                  mask_size_planet: float = 6.,
                  mask_size_star: float = 12.,
                  filter_sigma: float = 40.,
-                 background_method='spline',
+                 background_method: str = 'spline',
                  ):
         """
         Constructor of IFUBackgroundSubtractionModule.
@@ -69,8 +69,8 @@ class IFUBackgroundSubtractionModule(ProcessingModule):
         self.mask_size_star = mask_size_star
         self.filter_sigma = filter_sigma
         self.background_method = background_method
-
-
+    
+    
     def run(self):
         """
         Run method of the module. Model the background and subtract it.
