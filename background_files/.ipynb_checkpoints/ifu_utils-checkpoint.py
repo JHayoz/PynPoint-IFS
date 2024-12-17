@@ -172,7 +172,11 @@ def get_wavelength_info(science_files):
     for file in science_files:
         hdu = fits.open(file)
         hdr = hdu[1].header
-        wvl_params = [hdr['CRVAL3'],hdr['CDELT3']]
+        if 'CDELT3' in hdr.keys():
+            dwvl = hdr['CDELT3']
+        elif 'CD3_3' in hdr.keys():
+            dwvl = hdr['CD3_3']
+        wvl_params = [hdr['CRVAL3'],dwvl]
         data = hdu[1].data
         science_nframes += [len(data)]
         hdu.close()
@@ -192,8 +196,8 @@ def get_wavelength(file,header_crval='CRVAL3',header_cd='CD3_3'):
     rval = hdr[header_crval]
     rshift = hdr[header_cd]
     lencube = hdr['NAXIS3']
-    wavelength = np.arange(rval,rval+lencube*rshift,rshift)
-    # wavelength = np.array([rval + i*rshift for i in range(lencube)])
+    # wavelength = np.arange(rval,rval+lencube*rshift,rshift)
+    wavelength = np.array([rval + i*rshift for i in range(lencube)])
     return wavelength
 # sort fits files according to the chronological order in which they were observed
 def sort_files(file_arr):
@@ -527,7 +531,7 @@ def centroid_pointsource(pipeline,image_cube,filter_sigma=1,plot=True,save=True,
     else:
         return planet_position
 
-def get_sky_calc_model(obj_coord='23 07 28.9014701064 +21 08 02.109792078',date='2023-10-15T03:25:30'):
+def get_sky_calc_model(obj_coord='23 07 28.9014701064 +21 08 02.109792078',date='2023-10-15T03:25:30',wres=20000):
     
     coord_target = SkyCoord('%s:%s:%s %s:%s:%s' % tuple(obj_coord.split(' ')),unit=(u.hourangle,u.degree))
     
@@ -539,7 +543,7 @@ def get_sky_calc_model(obj_coord='23 07 28.9014701064 +21 08 02.109792078',date=
                              date=date,
                              update_values=True)
     skycalc["msolflux"] = 130       # [sfu] For dates after 2019-01-31
-    skycalc['wres'],skycalc['wmin'],skycalc['wmax'] = 20000,1500,3000
+    skycalc['wres'],skycalc['wmin'],skycalc['wmax'] = wres,1500,3000
     tbl = skycalc.get_sky_spectrum()
     wvl = tbl['lam'].data/1e3
     transm = tbl['trans'].data

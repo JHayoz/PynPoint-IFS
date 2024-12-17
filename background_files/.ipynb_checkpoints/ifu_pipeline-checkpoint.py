@@ -4,14 +4,14 @@ import numpy as np
 
 from background_files.ifuframeselection import *
 from background_files.ifubadpixel import *
-from background_files.ifucentering_test import *
+from background_files.ifucentering import *
 from background_files.ifupsfpreparation import *
 from background_files.ifupsfsubtraction import *
-from background_files.ifupsfsubtraction_jean import *
+from background_files.ifupsfsubtraction import *
 from background_files.ifuresizing import *
 from background_files.ifustacksubset import *
 from background_files.ifucrosscorrelation import *
-from background_files.ifucrosscorrelation_jean import *
+from background_files.ifucrosscorrelation import *
 from background_files.ifupcasubtraction import *
 from background_files.ifuresizing import *
 from background_files.ifu_utils import select_cubes,plot_data,sort_files,get_wavelength_info,piecewise_spline_fit,replace_outliers,load_spectral_templates,get_sky_calc_model,rebin
