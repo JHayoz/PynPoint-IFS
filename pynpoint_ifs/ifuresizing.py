@@ -1,5 +1,5 @@
 """
-Pipeline modules for frame selection.
+Pipeline modules for resizing the cubes.
 """
 
 import sys
@@ -9,23 +9,18 @@ import warnings
 import copy
 
 from typing import Union, Tuple
+from typeguard import typechecked
 
 import numpy as np
-
-from typeguard import typechecked
+from scipy.interpolate import RegularGridInterpolator
 
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
 from pynpoint.util.image import shift_image, rotate
 
-from scipy.interpolate import RegularGridInterpolator
-
-
-
-
 class FoldingModule(ProcessingModule):
     """
-    Module to fold the cube from 3D science space to 2D detector space.
+    Module to fold the cube from 3D science space to 2D detector space. Doesn't keep track of the actual position of the slits.
     """
     
     __author__ = 'Gabriele Cugno'
@@ -38,17 +33,19 @@ class FoldingModule(ProcessingModule):
         image_out_tag: str = 'im_2D'
     ) -> None:
         """
-        Constructor of FoldingModule.
+        Parameters
+        ----------
+        name_in: str
+            Unique name of the module instance.
+        image_in_tag: str
+            Tag of the database entry that is read as input.
+        image_out_tag: str
+            Tag of the database entry that is written as output. Should be different from *image_in_tag*.
         
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param image_out_tag: Tag of the database entry that is written as output. Should be
-        different from *image_in_tag*.
-        :type image_out_tag: str
-        
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(FoldingModule, self).__init__(name_in)
@@ -56,11 +53,14 @@ class FoldingModule(ProcessingModule):
         self.m_image_in_port = self.add_input_port(image_in_tag)
         self.m_image_out_port = self.add_output_port(image_out_tag)
     
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module. Fold a 3D cube into 2D detector images.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         nspectrum = self.m_image_in_port.get_attribute("NFRAMES")
@@ -89,7 +89,7 @@ class FoldingModule(ProcessingModule):
 
 class UnfoldingModule(ProcessingModule):
     """
-    Module to construct the cube from 2D detector space to 2D science space.
+    Module to construct the cube from 2D detector space to 3D science space. Inverse of FoldingModule.
     """
     
     __author__ = 'Gabriele Cugno'
@@ -102,17 +102,19 @@ class UnfoldingModule(ProcessingModule):
         image_out_tag: str = 'im_2D'
     ) -> None:
         """
-        Constructor of UnfoldingModule.
+        Parameters
+        ----------
+        name_in: str
+            Unique name of the module instance.
+        image_in_tag: str
+            Tag of the database entry that is read as input.
+        image_out_tag: str
+            Tag of the database entry that is written as output. Should be different from *image_in_tag*.
         
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param image_out_tag: Tag of the database entry that is written as output. Should be
-        different from *image_in_tag*.
-        :type image_out_tag: str
-        
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(UnfoldingModule, self).__init__(name_in)
@@ -122,9 +124,12 @@ class UnfoldingModule(ProcessingModule):
     
     def run(self):
         """
-        Run method of the module. Unfold 2D detector images in 3D cubes.
+        Run method of the module. Unfold 2D detector images into 3D cubes.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         nspectrum = self.m_image_in_port.get_attribute("NFRAMES")
@@ -150,7 +155,7 @@ class UnfoldingModule(ProcessingModule):
 
 class UpSampleModule(ProcessingModule):
     """
-    Module to save the data to a higher (spatial) sampling rate by "dividing" the pixels, e.g. from (1) into (1 1, 1 1) if factor=2. Note: this does not conserve flux, namely the flux increases by factor^2
+    Module to save the data to a higher (spatial) sampling rate by "dividing" the pixels, e.g. from (1) into (1 1, 1 1) if factor=2. Note: this does not conserve flux, namely the flux increases by factor^2 as pixels are copied.
     """
     
     __author__ = 'Jean Hayoz'
@@ -164,19 +169,21 @@ class UpSampleModule(ProcessingModule):
         factor: int = 2
     ) -> None:
         """
-        Constructor of UpSampleModule.
+        Parameters
+        ----------
+        name_in: str
+            Unique name of the module instance.
+        image_in_tag: str
+            Tag of the database entry that is read as input.
+        image_out_tag: str
+            Tag of the database entry that is written as output. Should be different from *image_in_tag*.
+        factor: int
+            factor by which the sampling should be increased.
         
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param image_out_tag: Tag of the database entry that is written as output. Should be
-        different from *image_in_tag*.
-        :type image_out_tag: str
-        :param factor: factor by which the sampling should be increased
-        :type factor: int
-        
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(UpSampleModule, self).__init__(name_in)
@@ -189,7 +196,10 @@ class UpSampleModule(ProcessingModule):
         """
         Run method of the module.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         nframes,lenx,leny = self.m_image_in_port.get_shape()
@@ -208,14 +218,13 @@ class UpSampleModule(ProcessingModule):
             self.m_image_out_port.append(datacube_resampled)
             
 
-        
         self.m_image_out_port.copy_attributes(self.m_image_in_port)
         self.m_image_out_port.add_history('Up sampled', 'Factor: %i' % self.m_factor)
         self.m_image_out_port.close_port()
 
 class FinerGridInterpolationModule(ProcessingModule):
     """
-    Module to interpolate the data on a finer grid, defined by the argument factor, which controls the increase in spatial sampling.
+    Module to interpolate the data on a finer grid, defined by the argument factor, which controls the increase in spatial sampling. Note: this does not conserve flux, namely the flux increases by factor^2 as nex pixels are created through interpolation.
     """
     
     __author__ = 'Jean Hayoz'
@@ -229,19 +238,21 @@ class FinerGridInterpolationModule(ProcessingModule):
         factor: int = 2
     ) -> None:
         """
-        Constructor of UnfoldingModule.
+        Parameters
+        ----------
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        image_out_tag : str
+            Tag of the database entry that is written as output. Should be different from *image_in_tag*.
+        factor : int
+            factor by which the sampling should be increased
         
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param image_out_tag: Tag of the database entry that is written as output. Should be
-        different from *image_in_tag*.
-        :type image_out_tag: str
-        :param factor: factor by which the sampling should be increased
-        :type factor: int
-        
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(FinerGridInterpolationModule, self).__init__(name_in)
@@ -254,7 +265,10 @@ class FinerGridInterpolationModule(ProcessingModule):
         """
         Run method of the module. Unfold 2D detector images in 3D cubes.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         nframes,lenx,leny = self.m_image_in_port.get_shape()

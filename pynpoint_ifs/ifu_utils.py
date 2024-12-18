@@ -209,17 +209,61 @@ def sort_files(file_arr):
     sorted_files = list(dict(sorted(science_date.items(), key=lambda item: item[1])).keys())
     return sorted_files
 
-# function to replace outliers by comparing their distance to a (rolling) median filter in terms of median absolute deviation
+# function to replace outliers by comparing their distance to a (rolling) median filter in terms of median absolute deviation or standard deviation
 # outliers are replaced by the value of the median filter
-def replace_outliers(spectrum, sigma, filt_size = 31,iterate=1):
+def replace_outliers(spectrum, sigma, method='mad'):
     spectrum2 = copy.copy(spectrum)
-    for iter in range(iterate):
-        smooth = median_filter(spectrum2,filt_size)
-        sp_sub = spectrum2-smooth
-        # std = np.quantile(sp_sub,0.84)-np.quantile(sp_sub, 0.50)
+    sub = medfilt(spectrum2, 13)
+    sp_sub = spectrum2-sub
+    if method=='mad':
         std = median_abs_deviation(sp_sub)
-        spectrum2 = np.where(np.abs(sp_sub)> sigma*std, smooth, spectrum2)
+    elif method=='std':
+        std = np.quantile(sp_sub,0.84)-np.quantile(sp_sub, 0.50)
+    else:
+        print('PLEASE USE METHOD==mad or std')
+    spectrum2 = np.where(np.abs(sp_sub)> sigma*std, sub, spectrum2)
     return spectrum2
+
+# function to replace outliers after continuum subtraction using a gaussian filter.
+def replace_outliers_MAD(spectrum,smooth_sigma=11,sigma=11,replace_method = 'smooth'):
+    # identify the outliers by the median absolute deviation, after continuum-subtraction
+    smooth = gaussian_filter(spectrum,smooth_sigma)
+    sub = spectrum-smooth
+    std = median_abs_deviation(sub)
+    outliers = np.abs(sub) > sigma * std
+    if replace_method == 'smooth':
+        # define a function to replace the outliers
+        smooth_non_outliers = gaussian_filter(spectrum[~outliers],smooth_sigma)
+        x_axis = np.arange(0,len(spectrum))
+        smooth_small_x = x_axis[~outliers]
+        interped = interp1d(x=smooth_small_x,y=smooth_non_outliers,bounds_error=None,fill_value='extrapolate')
+        smooth_small_interped = interped(x_axis)
+    
+        # correct the spectrum
+        spectrum_corr = np.where(outliers,smooth_small_interped,spectrum)
+    else:# replace_method == 'zero'
+        spectrum_corr = np.where(outliers,0,spectrum)
+    return spectrum_corr
+
+# function to find the brightest pixels in a datacube
+def extract_bright_px(datacube,nb_px = 10):
+    img = np.mean(datacube,axis=0)
+    indices = np.argpartition(img.reshape((-1)), -nb_px)[-nb_px:]
+    brightest_pix = np.unravel_index(indices,img.shape)
+    return brightest_pix
+
+# function to extract the least brightest subsample of pixels out of the brightest pixels
+def extract_star_spectrum_from_sub_bright_px(datacube,sample = 100,nb_px=10):
+    sample = sample
+    img = np.mean(datacube,axis=0)
+    # pick the brightest sample pixels
+    indices = np.argpartition(img.reshape((-1)), -sample)[-sample:]
+    # sort them
+    sorted_subindices = np.argsort(img[np.unravel_index(indices,np.shape(img))])
+    sorted_indices = indices[sorted_subindices]
+    # pick the least bright nb_px pixels 
+    brightest_pix = np.unravel_index(sorted_indices[:nb_px],np.shape(img))
+    return brightest_pix
 
 # Extract the spectrum using a photometric aperture centered on the brightest spaxel
 def extract_star_spectrum(datacube):

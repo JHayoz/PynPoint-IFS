@@ -1,5 +1,5 @@
 """
-Pipeline modules for frame selection.
+Pipeline modules for frame stacking.
 """
 
 import sys
@@ -9,25 +9,24 @@ import warnings
 import copy
 
 from typing import Union, Tuple
+from typeguard import typechecked
+
 from joblib import Parallel, delayed
 
 import numpy as np
-
-from typeguard import typechecked
+from photutils.aperture import CircularAperture
+from photutils.aperture import aperture_photometry
 
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
 from pynpoint.util.image import shift_image, rotate
-from .ifu_utils import select_cubes
 
-from photutils.aperture import CircularAperture
-from photutils.aperture import aperture_photometry
-
-from background_files.ifuprocessingfunctions import do_PCA_sub,do_derotate_shift
+from pynpoint_ifs.ifu_utils import select_cubes
+from pynpoint_ifs.ifuprocessingfunctions import do_PCA_sub,do_derotate_shift
 
 class ApertureCombineModule(ProcessingModule):
     """
-    Module to bin together spectral channels.
+    Module to convolve lambda-images with apertures, i.e. to perform aperture photometry in every pixel of each lambda-image.
     """
     __author__ = 'Jean Hayoz'
     
@@ -39,25 +38,25 @@ class ApertureCombineModule(ProcessingModule):
         image_out_tag: str = 'aperture_combined',
         aperture_radius: float = 1.4,
         cpus: int = 1
-    ):
+    ) -> None:
         """
-        Constructor of ApertureCombineModule.
-        
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param wv_in_tag: Tag of the database entry that is read as input.
-        :type wv_in_tag: str
-        :param image_root_out_tag: Tag of the database entry that is written as output. Should be
-        different from *image_in_tag*.
-        :type image_root_out_tag: str
-        :param wv_out_tag: Tag of the database entry that is written as output.
-        :type wv_out_tag: str
-        :param combine: method used to combine the frames
-        :type combine: str
-        
-        :return: None
+        Parameters
+        ----------
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        image_out_tag : str
+            Tag of the database entry that is written as output.
+        aperture_radius : float
+            Radius of the apertures (in pixels).
+        cpus : int
+            Number of CPUs to use for parallel computation (using joblib).
+
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(ApertureCombineModule, self).__init__(name_in)
@@ -67,22 +66,31 @@ class ApertureCombineModule(ProcessingModule):
         self.m_aperture_radius = aperture_radius
         self.m_cpus = cpus
     
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module. Combines the frames of the cubes.
             
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         def calculate_photometry(apertures,image):
             return apertures.do_photometry(image)[0]
         
         nspectrum = self.m_image_in_port.get_attribute("NFRAMES")
         lencube,lenx,leny = self.m_image_in_port.get_shape()
+        
+        # calculate the coordinates of the apertures
         X,Y = np.meshgrid(np.arange(leny),np.arange(lenx))
         coordinates = np.dstack([X,Y])
         coordinates_flat = coordinates.reshape((-1,2))
         nb_apertures = len(coordinates_flat)
+
+        # create apertures
         apertures = CircularAperture(coordinates_flat,self.m_aperture_radius)
+
+        # start computation
         start_time = time.time()
         if self.m_cpus > 1:
             print('Running ApertureCombineModule in parallel...')
@@ -108,14 +116,14 @@ class ApertureCombineModule(ProcessingModule):
 
 class CrossCorrelationPreparationModule(ProcessingModule):
     """
-    Module to eliminate regions of the spectrum.
+    General use module to rotate, shift or combine datacubes. Specifically created to combine the residuals after PSF subtraction.
     """
-    __author__ = 'Gabriele Cugno'
+    __author__ = 'Jean Hayoz'
     
     @typechecked
     def __init__(
         self,
-        name_in: str = 'select_range',
+        name_in: str = 'cross_correlation_preparation',
         image_in_tag: str = 'initial_spectrum',
         shift_cubes_in_tag: str ='centering_cubes',
         image_out_tag: str = 'im_2D',
@@ -126,27 +134,35 @@ class CrossCorrelationPreparationModule(ProcessingModule):
         combine: str = 'median'
     ) -> None:
         """
-        Constructor of CrossCorrelationPreparationModule. Assumes one parallactic angle and one shift per 3D cube XxYxWVL.
-        
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param shift_cubes_in_tag: Tag of the database entry that is read as input.
-        :type shift_cubes_in_tag: str
-        :param image_out_tag: Tag of the database entry that is written as output. Should be
-        different from *image_in_tag*.
-        :type image_out_tag: str
-        :param mask_out_tag: Tag of the database entry that is written as output.
-        :type mask_out_tag: str
-        :param shift: shift the images to center them.
-        :type shift: bool
-        :param rotate: rotate the images to a common orientation.
-        :type rotate: bool
-        :param stack: stack the images to a unique cube.
-        :type stack: bool
-        
-        :return: None
+        Parameters
+        ----------
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        shift_cubes_in_tag : str
+            Tag of the database entry with the position towards which the images should be shifted 
+            (e.g., the position of the star).
+        image_out_tag : str
+            Tag of the database entry that is written as output. Should be different from 
+            ``image_in_tag``.
+        mask_out_tag : str
+            Tag of the database entry that is written as output for the mask.
+        shift : bool
+            Whether to shift the images to center them.
+        rotate : bool
+            Whether to rotate the images to a common orientation.
+        stack : bool
+            Whether to stack the images into a unique cube.
+        combine : str
+            Method used to stack the cubes. Can be 'mean', 'median', or 'combine' to consider each 
+            pixel separately (i.e., the result for a given pixel is the mean over all the images 
+            which contain this pixel).
+
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(CrossCorrelationPreparationModule, self).__init__(name_in)
@@ -168,11 +184,14 @@ class CrossCorrelationPreparationModule(ProcessingModule):
         self.m_stack = stack
         self.m_combine = combine
 
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module. Convolves the images with a Gaussian kernel.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         nspectrum = self.m_image_in_port.get_attribute("NFRAMES")
@@ -271,34 +290,40 @@ class BinIFUModule(ProcessingModule):
     """
     __author__ = 'Gabriele Cugno'
     
+    @typechecked
     def __init__(
         self,
-        bin,
-        name_in = 'bin_channels',
-        wv_in_tag = ('wavelength_range',2000),
-        image_in_tag = 'cubes_aligned',
-        image_root_out_tag = 'bin_',
-        wv_out_tag = 'wavelengths',
-        combine = 'median'
-    ):
+        bin: int,
+        name_in: str = 'bin_channels',
+        image_in_tag: str = 'cubes_aligned',
+        wv_in_tag: Tuple[str, int] = ('wavelength_range',2000),
+        image_root_out_tag: str = 'bin_',
+        wv_out_tag: str = 'wavelengths',
+        combine: str = 'median'
+    ) -> None:
         """
-        Constructor of BinIFUModule.
-        
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param wv_in_tag: Tag of the database entry that is read as input.
-        :type wv_in_tag: str
-        :param image_root_out_tag: Tag of the database entry that is written as output. Should be
-        different from *image_in_tag*.
-        :type image_root_out_tag: str
-        :param wv_out_tag: Tag of the database entry that is written as output.
-        :type wv_out_tag: str
-        :param combine: method used to combine the frames
-        :type combine: str
-        
-        :return: None
+        Parameters
+        ----------
+        bin : int
+            Number of bins to combine together from the input spectrum.
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        wv_in_tag : tuple of (str, int)
+            Tag of the database entry that stores the wavelength axis and corresponding number of bins.
+        image_root_out_tag : str
+            Tag of the database entry that is written as output. Should be different from 
+            ``image_in_tag``.
+        wv_out_tag : str
+            Tag of the database entry that is written as output.
+        combine : str
+            Method used to combine the frames.
+
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(BinIFUModule, self).__init__(name_in)
@@ -314,11 +339,14 @@ class BinIFUModule(ProcessingModule):
         self.m_nbins = bin
         self.m_combine = combine
     
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module. Combines the frames of the cubes.
             
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         wv_i =self.m_wv_in_port.get_all()
@@ -372,20 +400,23 @@ class StackCubesModule(ProcessingModule):
         combine: str = 'median'
     ) -> None:
         """
-        Constructor of StackCubesModule.
-        
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param wv_in_tag: Tag of the database entry that is read as wavelength axis.
-        :type wv_in_tag: str
-        :param image_in_tag: Tag of the database entry that is read as input datacube.
-        :type image_in_tag: str
-        :param image_out_tag: Tag of the database entry that is written as output.
-        :type image_out_tag: str
-        :param combine: Method to stack the data, either by 'mean' or 'median' stacking.
-        :type combine: str
-        
-        :return: None
+        Parameters
+        ----------
+        name_in : str
+            Unique name of the module instance.
+        wv_in_tag : str
+            Tag of the database entry that is read as wavelength axis.
+        image_in_tag : str
+            Tag of the database entry that is read as input datacube.
+        image_out_tag : str
+            Tag of the database entry that is written as output.
+        combine : str
+            Method to stack the data, either by 'mean' or 'median' stacking.
+
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(StackCubesModule, self).__init__(name_in)
@@ -396,11 +427,14 @@ class StackCubesModule(ProcessingModule):
         
         self.m_combine = combine
     
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module. Combines the frames of the cubes.
             
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
 
@@ -415,5 +449,73 @@ class StackCubesModule(ProcessingModule):
         self.m_image_out_port.set_all(master_cube)
         self.m_image_out_port.copy_attributes(self.m_image_in_port)
         self.m_image_out_port.add_attribute("NFRAMES",[len(wavelength)], False)
+        self.m_image_out_port.add_history('Master datacube','Method = %s' % self.m_combine)
+        self.m_image_out_port.close_port()
+
+class WavelengthCollapseModule(ProcessingModule):
+    """
+    Module to stack the datacubes along the wavelength, either by mean- or median-stacking.
+    """
+    __author__ = 'Jean Hayoz'
+    
+    @typechecked
+    def __init__(
+        self,
+        name_in: str = 'collapse_wvl',
+        wv_in_tag: str = 'wavelength_range',
+        image_in_tag: str = 'cubes_aligned',
+        image_out_tag: str = 'mastercube',
+        combine: str = 'median'
+    ) -> None:
+        """
+        Parameters
+        ----------
+        name_in : str
+            Unique name of the module instance.
+        wv_in_tag : str
+            Tag of the database entry that is read as wavelength axis.
+        image_in_tag : str
+            Tag of the database entry that is read as input datacube.
+        image_out_tag : str
+            Tag of the database entry that is written as output.
+        combine : str
+            Method to stack the data, either by 'mean' or 'median' stacking.
+
+        Returns
+        -------
+        NoneType
+            None
+        """
+        
+        super(WavelengthCollapseModule, self).__init__(name_in)
+        
+        self.m_image_in_port = self.add_input_port(image_in_tag)
+        self.m_wv_in_port = self.add_input_port(wv_in_tag)
+        self.m_image_out_port = self.add_output_port(image_out_tag)
+        
+        self.m_combine = combine
+    
+    def run(self) -> None:
+        """
+        Run method of the module. Combines the frames of the cubes.
+            
+        Returns
+        -------
+        NoneType
+            None
+        """
+        
+
+        wavelength = self.m_wv_in_port.get_all()
+        datacubes = select_cubes(self.m_image_in_port.get_all(),wavelength)
+
+        if self.m_combine=='median':
+            master_cube = np.nanmedian(datacubes,axis=(1))
+        elif self.m_combine=='mean':
+            master_cube = np.nanmean(datacubes,axis=(1))
+
+        self.m_image_out_port.set_all(master_cube)
+        self.m_image_out_port.copy_attributes(self.m_image_in_port)
+        self.m_image_out_port.add_attribute("NFRAMES",[len(datacubes)], False)
         self.m_image_out_port.add_history('Master datacube','Method = %s' % self.m_combine)
         self.m_image_out_port.close_port()

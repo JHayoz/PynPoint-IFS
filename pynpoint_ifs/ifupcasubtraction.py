@@ -1,5 +1,5 @@
 """
-Pipeline modules for frame selection.
+Pipeline modules for PCA PSF subtraction.
 """
 
 import sys
@@ -9,20 +9,17 @@ import warnings
 import copy
 
 from typing import Union, Tuple
+from typeguard import typechecked
 
 import numpy as np
-
-from typeguard import typechecked
+from sklearn.decomposition import PCA
 
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
-from sklearn.decomposition import PCA
-#from pynpoint.util.image import shift_image
-
 
 class IFUResidualsPCAModule(ProcessingModule):
     """
-    Module to eliminate regions of the spectrum.
+    Module to subtract the PSF using PCA.
     """
     __author__ = 'Gabriele Cugno'
     
@@ -36,22 +33,25 @@ class IFUResidualsPCAModule(ProcessingModule):
         model_out_tag: str = "PCA_model"
     ) -> None:
         """
-        Constructor of IFUResidualsPCAModule.
-        
-        :param pc_number: number of removed principal components
-        :type pc_number: int
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param image_out_tag: Tag of the database entry that is written as output. Should be
+        Parameters
+        ----------
+        :param pc_number : int
+            number of removed principal components
+        :param name_in : str
+            Unique name of the module instance.
+        :param image_in_tag : str
+            Tag of the database entry that is read as input.
+        :param image_out_tag : str
+            Tag of the database entry that is written as output. Should be
         different from *image_in_tag*.
-        :type image_out_tag: str
-        :param model_out_tag: Tag of the database entry that is written as output. Should be
+        :param model_out_ta : str
+            Tag of the database entry that is written as output. Should be
         different from *image_in_tag*.
-        :type model_out_tag: str
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(IFUResidualsPCAModule, self).__init__(name_in)
@@ -62,11 +62,14 @@ class IFUResidualsPCAModule(ProcessingModule):
         
         self.m_pc_number = pc_number
     
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module. Applies PCA to the images.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
 
         nim = self.m_image_in_port.get_shape()[0]

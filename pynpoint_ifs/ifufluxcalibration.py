@@ -1,9 +1,17 @@
+"""
+Pipeline modules for flux extraction and calibration.
+"""
+import time
+import warnings
+
+from typeguard import typechecked
+from typing import List, Optional, Tuple, Union
+
 import numpy as np
 from scipy.ndimage import gaussian_filter,median_filter
 from scipy.signal import savgol_filter,medfilt,resample
 from scipy.interpolate import splrep, BSpline,interp1d
-import pynpoint as pp
-import warnings
+
 from typing import List, Optional, Tuple, Union
 from astropy.modeling import models, fitting
 from astropy.modeling.functional_models import AiryDisk2D,Gaussian2D
@@ -19,13 +27,12 @@ from spectres import spectres
 from scipy.stats import median_abs_deviation
 import skycalc_ipy
 import pandas as pd
-from background_files.ifu_utils import rebin
 
-from typeguard import typechecked
-from typing import List, Optional, Tuple, Union
+import pynpoint as pp
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
-import time
+
+from pynpoint_ifs.ifu_utils import rebin
 
 def extract_spectra(datacube,fit_param,radius,plot=False):
     print(len(fit_param))
@@ -249,6 +256,7 @@ class IFUSpectrumExtractionModule(ProcessingModule):
                  aperture_bk_dist: float = 8.,
                  aperture_bk_angle: float = 0.,
                  aperture_bk_position: str = 'around',
+                 aperture_bk_combine: bool = True,
                  plot: bool = True
                  ):
         """
@@ -285,6 +293,7 @@ class IFUSpectrumExtractionModule(ProcessingModule):
         self.m_ap_bk_dist = aperture_bk_dist
         self.m_ap_bk_angle = aperture_bk_angle
         self.m_ap_position = aperture_bk_position
+        self.m_ap_bk_combine = aperture_bk_combine
         self.m_plot = plot
 
         self.m_extract_bk = True
@@ -362,8 +371,11 @@ class IFUSpectrumExtractionModule(ProcessingModule):
             self.m_obj_spectra_out_port.append([obj_spectrum])
             if self.m_extract_bk:
                 mask_nans = np.isnan(np.sum(bk_spectra,axis=0))
-                bk_spectra_median = np.median(bk_spectra.transpose()[~mask_nans].transpose(),axis=1)/(self.m_ap_bk_radius**2)*(self.m_ap_obj_radius**2)
-                self.m_bk_spectra_out_port.append([bk_spectra_median])
+                if self.m_ap_bk_combine:
+                    bk_spectra_median = np.median(bk_spectra.transpose()[~mask_nans].transpose(),axis=1)/(self.m_ap_bk_radius**2)*(self.m_ap_obj_radius**2)
+                    self.m_bk_spectra_out_port.append([bk_spectra_median])
+                else:
+                    self.m_bk_spectra_out_port.append([bk_spectra.transpose()])
             
         self.m_obj_spectra_out_port.copy_attributes(self.m_image_in_port)
         self.m_obj_spectra_out_port.add_history(

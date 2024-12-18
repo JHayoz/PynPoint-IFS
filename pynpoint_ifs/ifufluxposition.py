@@ -11,7 +11,6 @@ import time
 import warnings
 
 from typing import Union, Tuple, List
-#from multiprocessing import Pool
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -28,15 +27,14 @@ from PyAstronomy.pyasl import dopplerShift
 from photutils import aperture_photometry, CircularAperture
 
 from pynpoint import FakePlanetModule
-
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.analysis import fake_planet, merit_function, false_alarm, gaussian_noise
-from pynpoint.util.image import create_mask, polar_to_cartesian, cartesian_to_polar, \
-                                center_subpixel, rotate_coordinates
+from pynpoint.util.image import create_mask, polar_to_cartesian, cartesian_to_polar, center_subpixel, rotate_coordinates
 from pynpoint.util.mcmc_fix import lnprob_fix
 from pynpoint.util.module import progress, memory_frames
 from pynpoint.util.psf import pca_psf_subtraction
 from pynpoint.util.residuals import combine_residuals
+
 from multiprocessing import Pool
 
 
@@ -48,16 +46,18 @@ class IfuFakePlanetModule(ProcessingModule):
     __author__ = 'Gabriele Cugno'
 
     @typechecked
-    def __init__(self,
-                 name_in: str,
-                 image_in_tag: str,
-                 psf_in_tag: str,
-                 image_out_tag: str,
-                 position: Tuple[float, float],
-                 magnitude_in_tag: str,
-                 shift_cubes_in_tag: Union[str, List[str]] ="centering_cubes",
-                 parang_cube = 0.,
-                 interpolation: str = 'spline') -> None:
+    def __init__(
+        self,
+        name_in: str,
+        image_in_tag: str,
+        psf_in_tag: str,
+        image_out_tag: str,
+        position: Tuple[float, float],
+        magnitude_in_tag: str,
+        shift_cubes_in_tag: Union[str, List[str]] ="centering_cubes",
+        parang_cube = 0.,
+        interpolation: str = 'spline'
+    ) -> None:
         """
         Parameters
         ----------
@@ -222,32 +222,32 @@ class CreatePlanetBTSettlContrastModule(ProcessingModule):
                  RV:float = 0.,
                  interpolation: str = 'spline') -> None:
         """
-            Parameters
-            ----------
-            name_in : str
-            Unique name of the module instance.
-            image_in_tag : str
-            Tag of the database entry with images that are read as input.
-            psf_in_tag : str
-            Tag of the database entry that contains the reference PSF that is used as fake planet.
-            Can be either a single image (2D) or a cube (3D) with the dimensions equal to
-            *image_in_tag*.
-            image_out_tag : str
-            Tag of the database entry with images that are written as output.
-            position : tuple(float, float)
-            Angular separation (arcsec) and position angle (deg) of the fake planet. Angle is
-            measured in counterclockwise direction with respect to the upward direction (i.e.,
-            East of North).
-            magnitude : float
-            Magnitude of the fake planet with respect to the star.
-            interpolation : str
-            Type of interpolation that is used for shifting the images (spline, bilinear, or fft).
-            
-            Returns
-            -------
-            NoneType
-            None
-            """
+        Parameters
+        ----------
+        name_in : str
+        Unique name of the module instance.
+        image_in_tag : str
+        Tag of the database entry with images that are read as input.
+        psf_in_tag : str
+        Tag of the database entry that contains the reference PSF that is used as fake planet.
+        Can be either a single image (2D) or a cube (3D) with the dimensions equal to
+        *image_in_tag*.
+        image_out_tag : str
+        Tag of the database entry with images that are written as output.
+        position : tuple(float, float)
+        Angular separation (arcsec) and position angle (deg) of the fake planet. Angle is
+        measured in counterclockwise direction with respect to the upward direction (i.e.,
+        East of North).
+        magnitude : float
+        Magnitude of the fake planet with respect to the star.
+        interpolation : str
+        Type of interpolation that is used for shifting the images (spline, bilinear, or fft).
+        
+        Returns
+        -------
+        NoneType
+        None
+        """
         
         super(CreatePlanetBTSettlContrastModule, self).__init__(name_in)
         
@@ -368,8 +368,8 @@ class CreatePlanetBTSettlContrastModule(ProcessingModule):
 
 class CreatePlanetpTContrastModule(ProcessingModule):
     """
-        Pipeline module to inject a positive or negative artificial planet into a stack of images.
-        """
+    Pipeline module to inject a positive or negative artificial planet into a stack of images.
+    """
     
     __author__ = 'Gabriele Cugno'
     
@@ -387,32 +387,32 @@ class CreatePlanetpTContrastModule(ProcessingModule):
                  species: dict ={},
                  interpolation: str = 'spline') -> None:
         """
-            Parameters
-            ----------
-            name_in : str
-            Unique name of the module instance.
-            image_in_tag : str
-            Tag of the database entry with images that are read as input.
-            psf_in_tag : str
-            Tag of the database entry that contains the reference PSF that is used as fake planet.
-            Can be either a single image (2D) or a cube (3D) with the dimensions equal to
-            *image_in_tag*.
-            image_out_tag : str
-            Tag of the database entry with images that are written as output.
-            position : tuple(float, float)
-            Angular separation (arcsec) and position angle (deg) of the fake planet. Angle is
-            measured in counterclockwise direction with respect to the upward direction (i.e.,
-            East of North).
-            magnitude : float
-            Magnitude of the fake planet with respect to the star.
-            interpolation : str
-            Type of interpolation that is used for shifting the images (spline, bilinear, or fft).
-            
-            Returns
-            -------
-            NoneType
-            None
-            """
+        Parameters
+        ----------
+        name_in : str
+        Unique name of the module instance.
+        image_in_tag : str
+        Tag of the database entry with images that are read as input.
+        psf_in_tag : str
+        Tag of the database entry that contains the reference PSF that is used as fake planet.
+        Can be either a single image (2D) or a cube (3D) with the dimensions equal to
+        *image_in_tag*.
+        image_out_tag : str
+        Tag of the database entry with images that are written as output.
+        position : tuple(float, float)
+        Angular separation (arcsec) and position angle (deg) of the fake planet. Angle is
+        measured in counterclockwise direction with respect to the upward direction (i.e.,
+        East of North).
+        magnitude : float
+        Magnitude of the fake planet with respect to the star.
+        interpolation : str
+        Type of interpolation that is used for shifting the images (spline, bilinear, or fft).
+        
+        Returns
+        -------
+        NoneType
+        None
+        """
         
         super(CreatePlanetpTContrastModule, self).__init__(name_in)
         
@@ -437,15 +437,15 @@ class CreatePlanetpTContrastModule(ProcessingModule):
     @typechecked
     def run(self) -> None:
         """
-            Run method of the module. Shifts the PSF template to the location of the fake planet
-            with an additional correction for the parallactic angle and an optional flux scaling.
-            The stack of images with the injected planet signal is stored.
-                     
-            Returns
-            -------
-            NoneType
-            None
-            """
+        Run method of the module. Shifts the PSF template to the location of the fake planet
+        with an additional correction for the parallactic angle and an optional flux scaling.
+        The stack of images with the injected planet signal is stored.
+                 
+        Returns
+        -------
+        NoneType
+        None
+        """
                  
                  
         def _planck(wavel_points,

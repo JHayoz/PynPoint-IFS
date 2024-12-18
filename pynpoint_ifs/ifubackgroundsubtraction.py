@@ -8,7 +8,7 @@ import time
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
 
-from background_files.ifufluxcalibration import create_planet_mask
+from pynpoint_ifs.ifufluxcalibration import create_planet_mask
 
 class IFUBackgroundSubtractionModule(ProcessingModule):
     """

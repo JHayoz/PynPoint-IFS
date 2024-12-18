@@ -2,19 +2,19 @@ import pynpoint as pp
 from astropy.io import fits
 import numpy as np
 
-from background_files.ifuframeselection import *
-from background_files.ifubadpixel import *
-from background_files.ifucentering import *
-from background_files.ifupsfpreparation import *
-from background_files.ifupsfsubtraction import *
-from background_files.ifupsfsubtraction import *
-from background_files.ifuresizing import *
-from background_files.ifustacksubset import *
-from background_files.ifucrosscorrelation import *
-from background_files.ifucrosscorrelation import *
-from background_files.ifupcasubtraction import *
-from background_files.ifuresizing import *
-from background_files.ifu_utils import select_cubes,plot_data,sort_files,get_wavelength_info,piecewise_spline_fit,replace_outliers,load_spectral_templates,get_sky_calc_model,rebin
+from pynpoint_ifs.ifuframeselection import *
+from pynpoint_ifs.ifubadpixel import *
+from pynpoint_ifs.ifucentering import *
+from pynpoint_ifs.ifupsfpreparation import *
+from pynpoint_ifs.ifupsfsubtraction import *
+from pynpoint_ifs.ifupsfsubtraction import *
+from pynpoint_ifs.ifuresizing import *
+from pynpoint_ifs.ifustacksubset import *
+from pynpoint_ifs.ifucrosscorrelation import *
+from pynpoint_ifs.ifucrosscorrelation import *
+from pynpoint_ifs.ifupcasubtraction import *
+from pynpoint_ifs.ifuresizing import *
+from pynpoint_ifs.ifu_utils import select_cubes,plot_data,sort_files,get_wavelength_info,piecewise_spline_fit,replace_outliers,load_spectral_templates,get_sky_calc_model,rebin
 
 
 def run_preprocessing(pipeline, sequence_files, run_which = 'all', hdr_wvl_keywords = ['CRVAL3','CD3_3'],crop=4,outlier_sigma=20,bad_pixel_corr = True,bp_sigma=5.,bp_iterate=10,bp_box=9,start='reading'):

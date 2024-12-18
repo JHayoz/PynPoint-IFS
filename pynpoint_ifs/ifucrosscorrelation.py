@@ -20,7 +20,7 @@ from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
 from pynpoint.util.image import shift_image, rotate
 
-from background_files.ifu_utils import select_cubes
+from pynpoint_ifs.ifu_utils import select_cubes
 
 
 
