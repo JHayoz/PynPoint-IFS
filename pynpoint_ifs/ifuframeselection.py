@@ -70,7 +70,7 @@ class SelectWavelengthRangeModule(ProcessingModule):
     
     def run(self) -> None:
         """
-        Run method of the module. Convolves the images with a Gaussian kernel.
+        Run method of the module.
         
         Returns
         -------
@@ -159,7 +159,7 @@ class AutomaticallySelectWavelengthRangeModule(ProcessingModule):
     
     def run(self) -> None:
         """
-        Run method of the module. Convolves the images with a Gaussian kernel.
+        Run method of the module.
         
         Returns
         -------
@@ -269,7 +269,7 @@ class CorrectWavelengthModule(ProcessingModule):
     
     def run(self) -> None:
         """
-        Run method of the module. Convolves the images with a Gaussian kernel.
+        Run method of the module.
         
         Returns
         -------

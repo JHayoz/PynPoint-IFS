@@ -68,8 +68,8 @@ class ApertureCombineModule(ProcessingModule):
     
     def run(self) -> None:
         """
-        Run method of the module. Combines the frames of the cubes.
-            
+        Run method of the module.
+        
         Returns
         -------
         NoneType
@@ -186,7 +186,7 @@ class CrossCorrelationPreparationModule(ProcessingModule):
 
     def run(self) -> None:
         """
-        Run method of the module. Convolves the images with a Gaussian kernel.
+        Run method of the module.
         
         Returns
         -------
@@ -341,8 +341,8 @@ class BinIFUModule(ProcessingModule):
     
     def run(self) -> None:
         """
-        Run method of the module. Combines the frames of the cubes.
-            
+        Run method of the module.
+        
         Returns
         -------
         NoneType
@@ -429,8 +429,8 @@ class StackCubesModule(ProcessingModule):
     
     def run(self) -> None:
         """
-        Run method of the module. Combines the frames of the cubes.
-            
+        Run method of the module.
+        
         Returns
         -------
         NoneType
@@ -497,8 +497,8 @@ class WavelengthCollapseModule(ProcessingModule):
     
     def run(self) -> None:
         """
-        Run method of the module. Combines the frames of the cubes.
-            
+        Run method of the module.
+        
         Returns
         -------
         NoneType

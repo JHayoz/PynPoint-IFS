@@ -1,6 +1,12 @@
-import numpy as np
+"""
+Help functions for ifuprocessing
+"""
+
 import copy
+
+import numpy as np
 from sklearn.decomposition import PCA
+
 from pynpoint.util.image import shift_image, rotate
 
 

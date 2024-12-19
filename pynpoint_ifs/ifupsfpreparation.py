@@ -1,5 +1,5 @@
 """
-Pipeline modules for frame selection.
+Pipeline modules for PSF preparation (for PSF reference or PSF subtraction)
 """
 
 import sys
@@ -9,20 +9,19 @@ import warnings
 import copy
 
 from typing import Union, Tuple
+from typeguard import typechecked
 
 import numpy as np
-
-from typeguard import typechecked
+from scipy.optimize import curve_fit
+from scipy.ndimage import gaussian_filter
+from skimage.registration import phase_cross_correlation
+from PyAstronomy.pyasl import dopplerShift
 
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
 from pynpoint.util.image import scale_image, shift_image
 
-from scipy.optimize import curve_fit
-from scipy.ndimage import gaussian_filter
-from skimage.registration import phase_cross_correlation
-from PyAstronomy.pyasl import dopplerShift
-from .ifu_utils import select_cubes,rebin
+from pynpoint_ifs.ifu_utils import select_cubes,rebin
 
 
 class IFUStellarSpectrumModule(ProcessingModule):
@@ -45,28 +44,32 @@ class IFUStellarSpectrumModule(ProcessingModule):
         norm_range: Tuple[float, float] = (2.14,2.145)
     ) -> None:
         """
-            Constructor of IFUStellarSpectrumModule.
-            
-            :param name_in: Unique name of the module instance.
-            :type name_in: str
-            :param image_in_tag: Tag of the database entry that is read as input.
-            :type image_in_tag: str
-            :param wv_in_tag: Tag of the database (wavelengths) entry that is read as input.
-            :type wv_in_tag: str
-            :param spectrum_out_tag: Tag of the database entry that is written as output. Should be
-            different from *image_in_tag*.
-            :type spectrum_out_tag: str
-            :param wv_out_tag: Tag of the database entry that is read as input.
-            :type wv_out_tag: str
-            :param num_pix: number of pixels that should be evaluated to build the stellar spectrum.
-            :type num_pix: int
-            :param std_max: maximum standard deviation for each specturm to remove outliers.
-            :type std_max: float
-            :param norm_range: initial and final wavelength range to be used to normalize the spectra. A region without dominant telluric features should be selected.
-            :type norm_range: Tuple
-            
-            :return: None
-            """
+        Parameters
+        ----------
+        
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        wv_in_tag : str
+            Tag of the database (wavelengths) entry that is read as input.
+        spectrum_out_tag : str
+            Tag of the database entry that is written as output. Should be
+        different from *image_in_tag*.
+        wv_out_tag : str
+            Tag of the database entry that is read as input.
+        num_pix : int
+            number of pixels that should be evaluated to build the stellar spectrum.
+        std_max : float
+            maximum standard deviation for each specturm to remove outliers.
+        norm_range : Tuple
+            initial and final wavelength range to be used to normalize the spectra. A region without dominant telluric features should be selected.
+        
+        Returns
+        -------
+        NoneType
+            None
+        """
         
         super(IFUStellarSpectrumModule, self).__init__(name_in)
         
@@ -78,12 +81,15 @@ class IFUStellarSpectrumModule(ProcessingModule):
         self.m_std = std_max
         self.m_norm_range = norm_range
     
-    def run(self):
+    def run(self) -> None:
         """
-            Run method of the module. Convolves the images with a Gaussian kernel.
-            
-            :return: None
-            """
+        Run method of the module.
+        
+        Returns
+        -------
+        NoneType
+            None
+        """
 
         def collapse_frames(images):
             return np.mean(images, axis=0)
@@ -164,18 +170,22 @@ class IFUWavelengthCalibrationModule(ProcessingModule):
         rvshift_out_tag: str = 'rvshift'
     ) -> None:
         """
-        Constructor of IFUWavelengthCalibrationModule.
+        Parameters
+        ----------
         
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param cc_in_tag: Tag of the database entry that is read as input CCF
-        :type cc_in_tag: str
-        :param drv_in_tag: Tag of the database entry that is read as input radial velocity axis of the CCF
-        :type drv_in_tag: str
-        :param rvshift_out_tag: Tag of the database entry that is written as output, in terms of radial velocity shift between the data and the telluric lines.
-        :type rvshift_out_tag: str
+        name_in : str
+            Unique name of the module instance.
+        cc_in_tag : str
+            Tag of the database entry that is read as input CCF
+        drv_in_tag : str
+            Tag of the database entry that is read as input radial velocity axis of the CCF
+        rvshift_out_tag : str
+            Tag of the database entry that is written as output, in terms of radial velocity shift between the data and the telluric lines.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(IFUWavelengthCalibrationModule, self).__init__(name_in)
@@ -186,11 +196,14 @@ class IFUWavelengthCalibrationModule(ProcessingModule):
         self.m_rvshift_out_port = self.add_output_port(rvshift_out_tag)
         
     
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
 
         def extract_rv(drv,cc,sigma = 5,drv_range=50):
@@ -248,22 +261,26 @@ class IFUWavelengthCorrectionModule(ProcessingModule):
         method: str = 'full'
     ) -> None:
         """
-        Constructor of IFUWavelengthCalibrationModule.
+        Parameters
+        ----------
         
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param wv_in_tag: Tag of the database (wavelengths) entry that is read as input.
-        :type wv_in_tag: str
-        :param rvshift_in_tag: Tag of the database entry that is read as input RV shift for each pixel, either a common RV shift for each spaxel throughout the cube, or one per cube
-        :type rvshift_in_tag: str
-        :param image_out_tag: Tag of the database entry that is written as output, after dopplershifting the cube by the amount specified by the RV shift
-        :type image_out_tag: str
-        :param method: either 'full' or 'mean': if 'mean', applies the same RV shift for all spaxels, if 'full' applies a different RV shift for each spaxel
-        :type method: str
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        wv_in_tag : str
+            Tag of the database (wavelengths) entry that is read as input.
+        rvshift_in_tag : str
+            Tag of the database entry that is read as input RV shift for each pixel, either a common RV shift for each spaxel throughout the cube, or one per cube
+        image_out_tag : str
+            Tag of the database entry that is written as output, after dopplershifting the cube by the amount specified by the RV shift
+        method : str
+            either 'full' or 'mean': if 'mean', applies the same RV shift for all spaxels, if 'full' applies a different RV shift for each spaxel
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(IFUWavelengthCorrectionModule, self).__init__(name_in)
@@ -274,11 +291,14 @@ class IFUWavelengthCorrectionModule(ProcessingModule):
         self.m_image_out_port = self.add_output_port(image_out_tag)
         self.m_method = method
     
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         wavelength = self.m_wv_in_port.get_all()
         datacubes = select_cubes(self.m_image_in_port.get_all(),wavelength)
@@ -355,6 +375,7 @@ class IFUSDIpreparationModule(ProcessingModule):
         """
         Parameters
         ----------
+        
         name_in : str
             Unique name of the module instance.
         image_in_tag : str
@@ -473,18 +494,22 @@ class IFUTelluricsWavelengthCalibrationModule(ProcessingModule):
         cc_accuracy: int = 10
     ) -> None:
         """
-        Constructor of IFUTelluricsWavelengthCalibrationModule.
+        Parameters
+        ----------
         
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param wv_in_tag: Tag of the database (wavelengths) entry that is read as input.
-        :type wv_in_tag: str
-        :param wavelength_shift_out_tag: Tag of the database entry that is written as output wavelength shift for each spaxel
-        :type wavelength_shift_out_tag: str
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        wv_in_tag : str
+            Tag of the database (wavelengths) entry that is read as input.
+        wavelength_shift_out_tag : str
+            Tag of the database entry that is written as output wavelength shift for each spaxel
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(IFUTelluricsWavelengthCalibrationModule, self).__init__(name_in)
@@ -496,11 +521,14 @@ class IFUTelluricsWavelengthCalibrationModule(ProcessingModule):
         self.m_tellurics_flux = tellurics_flux
         self.m_cc_accuracy = cc_accuracy
     
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         wavelength = self.m_wv_in_port.get_all()
         mean_wvl_step = np.mean(wavelength[1:]-wavelength[:-1])

@@ -35,18 +35,16 @@ class IFUResidualsPCAModule(ProcessingModule):
         """
         Parameters
         ----------
-        :param pc_number : int
+        pc_number : int
             number of removed principal components
-        :param name_in : str
+        name_in : str
             Unique name of the module instance.
-        :param image_in_tag : str
+        image_in_tag : str
             Tag of the database entry that is read as input.
-        :param image_out_tag : str
-            Tag of the database entry that is written as output. Should be
-        different from *image_in_tag*.
-        :param model_out_ta : str
-            Tag of the database entry that is written as output. Should be
-        different from *image_in_tag*.
+        image_out_tag : str
+            Tag of the database entry that is written as output. Should be different from *image_in_tag*.
+        model_out_ta : str
+            Tag of the database entry that is written as output. Should be different from *image_in_tag*.
         
         Returns
         -------

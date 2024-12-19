@@ -1,10 +1,15 @@
+"""
+Pipeline modules for writing data from the hdf5 database to fits files.
+"""
+
+from typing import Union, Tuple
+from typeguard import typechecked
+
 from pathlib import Path
 from astropy.io import fits
 import numpy as np
 import os
 import time
-from typing import Union, Tuple
-from typeguard import typechecked
 
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
@@ -26,13 +31,26 @@ class IFUFitsWritingModule(ProcessingModule):
         overwrite: bool = False
     ) -> None:
         """
-        Constructor of IFUFitsWritingModule.
+        Parameters
+        ----------
         
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
+        name_in: str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        wvl_in_tag : str
+            Tag of the database for the wavelength axis
+        output_dir : str
+            Path of the directory in which to write the fits files.
+        name_extension : str
+            Name extension to prepend to the file name.
+        overwrite : bool
+            Whether to overwrite the files if they already exist.
         
-        
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(IFUFitsWritingModule, self).__init__(name_in)
@@ -47,11 +65,14 @@ class IFUFitsWritingModule(ProcessingModule):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
     
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
 
         nspectrum = self.m_image_in_port.get_attribute("NFRAMES")

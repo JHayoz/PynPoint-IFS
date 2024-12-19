@@ -1,5 +1,5 @@
 """
-Pipeline modules for frame selection.
+Pipeline modules for frame alignment.
 """
 
 import sys
@@ -7,20 +7,19 @@ import time
 import math
 import warnings
 import copy
-from scipy.ndimage import generic_filter
-from scipy.signal import medfilt
 
 from typing import Union, Tuple
-
-import numpy as np
-
 from typeguard import typechecked
+
+from scipy.ndimage import generic_filter
+from scipy.signal import medfilt
+import numpy as np
 
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
 from pynpoint.util.image import shift_image
 
-from .ifu_utils import fit_airy,fit_gaussian,fit_center_custom,select_cubes
+from pynpoint_ifs.ifu_utils import fit_airy,fit_gaussian,fit_center_custom,select_cubes
 
 
 class IFUAlignCubesModule(ProcessingModule):
@@ -41,25 +40,29 @@ class IFUAlignCubesModule(ProcessingModule):
         image_out_tag: str = 'cubes_aligned'
     ) -> None:
         """
-        Constructor of IFUAlignCubesModule.
+        Parameters
+        ----------
         
-        :param precision: 
-        :type precision: float
-        :param shift_all_in_tag: Tag of the database entry that is read as input with the fit results from the :class:'~pynpoint.processing.centering.FitCenterModule' for each frame.
-        :type shift_all_in_tag: str
-        :param shift_cube_in_tag: Tag of the database entry that is read as input with the fit results from the :class:'~pynpoint.processing.centering.FitCenterModule' for each median-combined cubes.
-        :type shift_cube_in_tag: str
-        :param interpolation: Interpolation type for shifting of the images ('spline', 'bilinear', or 'fft').
-        :type interpolation: str
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param image_out_tag: Tag of the database entry that is written as output. Should be
+        precision: float
+            Precision with which to align the images via cross-correlation.
+        shift_all_in_tag : str
+            Tag of the database entry that is read as input with the fit results from the :class:'~pynpoint.processing.centering.FitCenterModule' for each frame.
+        shift_cube_in_tag : str
+            Tag of the database entry that is read as input with the fit results from the :class:'~pynpoint.processing.centering.FitCenterModule' for each median-combined cubes.
+        interpolation : str
+            Interpolation type for shifting of the images ('spline', 'bilinear', or 'fft').
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        image_out_tag : str
+            Tag of the database entry that is written as output. Should be
         different from *image_in_tag*.
-        :type image_out_tag: str
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(IFUAlignCubesModule, self).__init__(name_in)
@@ -83,12 +86,15 @@ class IFUAlignCubesModule(ProcessingModule):
         #m_precision = precision
     
     
-    def run(self):
+    def run(self) -> None:
         """
-            Run method of the module. Shifts the images by the difference between each individual and cube shift.
-            
-            :return: None
-            """
+        Run method of the module. Shifts the images by the difference between each individual and cube shift.
+        
+        Returns
+        -------
+        NoneType
+            None
+        """
         
         
         def image_shift(image, shift_yx, interpolation):
@@ -170,24 +176,30 @@ class FitCenterCustomModule(ProcessingModule):
         box: int =1
     ) -> None:
         """
-        :param name_in: unique name of the module
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input datacube
-        :type image_in_tag: str
-        :param wvl_in_tag: Tag of the database entry that is read as wavelength axis
-        :type wvl_in_tag: str
-        :param fit_out_tag: Tag of the database entry that is used as output for the fit parameters of the image center
-        :type fit_out_tag: str
-        :param sign: Sign of the model (positive or negative)
-        :type sign: str
-        :param model: Model to use for the fit (gaussian or airy)
-        :type model: str
-        :param filter_size: standard deviation of the gaussian filter used to smoothe the image
-        :type filter_size: float
-        :param box: (2box+1,2box+1) are the dimensions of the square, centered at the maximum of the image, used to estimate the parameters of the fit (the amplitude of the model)
-        :type box: int
+        Parameters
+        ----------
         
-        :return: None
+        name_in : str
+            unique name of the module
+        image_in_tag : str
+            Tag of the database entry that is read as input datacube
+        wvl_in_tag : str
+            Tag of the database entry that is read as wavelength axis
+        fit_out_tag : str
+            Tag of the database entry that is used as output for the fit parameters of the image center
+        sign : str
+            Sign of the model (positive or negative)
+        model : str
+            Model to use for the fit (gaussian or airy)
+        filter_size : float
+            standard deviation of the gaussian filter used to smoothe the image
+        box : int
+            (2box+1,2box+1) are the dimensions of the square, centered at the maximum of the image, used to estimate the parameters of the fit (the amplitude of the model)
+        
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(FitCenterCustomModule, self).__init__(name_in)
@@ -203,7 +215,7 @@ class FitCenterCustomModule(ProcessingModule):
         self.m_box = box
     
     
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module. Fits the position of the star with respect to the middle of the frame
         

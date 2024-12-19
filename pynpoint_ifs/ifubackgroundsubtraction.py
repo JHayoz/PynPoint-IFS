@@ -1,9 +1,15 @@
+"""
+Pipeline modules for background subtraction.
+"""
+
+import time
+
+from typeguard import typechecked
+from typing import List, Optional, Tuple, Union
+
 import numpy as np
 from scipy.interpolate import splrep,BSpline
 from scipy.ndimage import gaussian_filter
-from typeguard import typechecked
-from typing import List, Optional, Tuple, Union
-import time
 
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
@@ -18,38 +24,43 @@ class IFUBackgroundSubtractionModule(ProcessingModule):
     __author__ = 'Jean Hayoz'
 
     @typechecked
-    def __init__(self,
-                 name_in: str = 'subtract_background',
-                 image_in_tag: str = 'raw',
-                 image_out_tag: str = 'raw_bksub',
-                 background_out_tag: str = 'bk',
-                 planet_shift_param_tag: str = 'star_position',
-                 star_shift_param_tag: str = None,
-                 mask_size_planet: float = 6.,
-                 mask_size_star: float = 12.,
-                 filter_sigma: float = 40.,
-                 background_method: str = 'spline',
-                 ):
+    def __init__(
+        self,
+        name_in: str = 'subtract_background',
+        image_in_tag: str = 'raw',
+        image_out_tag: str = 'raw_bksub',
+        background_out_tag: str = 'bk',
+        planet_shift_param_tag: str = 'star_position',
+        star_shift_param_tag: str = None,
+        mask_size_planet: float = 6.,
+        mask_size_star: float = 12.,
+        filter_sigma: float = 40.,
+        background_method: str = 'spline',
+    ) -> None:
         """
-        Constructor of IFUBackgroundSubtractionModule.
+        Parameters
+        ----------
         
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param image_out_tag: Tag of the database entry that is written as output. Should be
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        image_out_tag : str
+            Tag of the database entry that is written as output. Should be
         different from *image_in_tag*.
-        :type image_out_tag: str
-        :param outlier_sigma: number of sigmas used to tag outliers. The "sigma" is calculated by the median absolute deviation.
-        :type outlier_sigma: float
-        :param filter_sigma: standard deviation of the Gaussian filter used to smoothe the spectrum.
-        :type filter_sigma: float
-        :param replace_method: if 'smooth', then replaces outliers by the smoothed spectrum, else replaces outliers by 0
-        :type replace_method: str
-        :param cpu: if cpu > 1, then parallelise the operation using joblib
-        :type cpu: int
+        outlier_sigma : float
+            number of sigmas used to tag outliers. The "sigma" is calculated by the median absolute deviation.
+        filter_sigma : float
+            standard deviation of the Gaussian filter used to smoothe the spectrum.
+        replace_method : str
+            if 'smooth', then replaces outliers by the smoothed spectrum, else replaces outliers by 0
+        cpu : int
+            if cpu > 1, then parallelise the operation using joblib
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(IFUBackgroundSubtractionModule, self).__init__(name_in)
@@ -71,14 +82,15 @@ class IFUBackgroundSubtractionModule(ProcessingModule):
         self.background_method = background_method
     
     
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module. Model the background and subtract it.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
-        
-        
         
         nspectrum = self.m_image_in_port.get_attribute('NFRAMES')
         lenimages,lenx,leny = self.m_image_in_port.get_shape()
@@ -90,7 +102,6 @@ class IFUBackgroundSubtractionModule(ProcessingModule):
         if self.star_mask:
             fitparam_star = self.m_star_shift_in_port.get_all()
             star_pos = fitparam_star[:,(0,2)]
-        
         
         start_time = time.time()
         for i, nspectrum_i in enumerate(nspectrum):

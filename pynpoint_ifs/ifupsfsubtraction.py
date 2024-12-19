@@ -35,7 +35,7 @@ class IFUPSFSubtractionModuleCugno(ProcessingModule):
     def __init__(
         self,
         name_in: str = 'psf_subtraction_HRSDI',
-        image_in_tag: str = 'initial_spectrum',
+        image_in_tag: str = 'datacubes',
         image_out_tag: str = 'PSF_sub',
         residuals_out_tag: str = 'PSF_sub_non_outliers',
         ref_spectrum_out_tag: str = 'PSF_sub_ref_spectrum',
@@ -87,6 +87,8 @@ class IFUPSFSubtractionModuleCugno(ProcessingModule):
             if 'drizzle' method to extract the stellar spectrum, which drop factor to use
         wvl_shift_tag : str
             if 'drizzle' method to extract the stellar spectrum, tag of the database to read as wavelength shift. Should be a wavelength shift for each spaxel, in python coordinates (first axis shift for first axis of data, etc)
+        wvl_in_tag : str
+            Tag of the database for the wavelength axis
         
         Returns
         -------
@@ -282,7 +284,7 @@ class IFUContinuumRemovalModule(ProcessingModule):
     def __init__(
         self,
         name_in: str = 'continuum_subtraction',
-        image_in_tag: str = 'initial_spectrum',
+        image_in_tag: str = 'datacubes',
         image_out_tag: str = 'PSF_sub',
         gauss_sigma: float = 10.,
         outliers_sigma: float = 3.
@@ -318,7 +320,7 @@ class IFUContinuumRemovalModule(ProcessingModule):
     
     def run(self) -> None:
         """
-        Run method of the module. Convolves the images with a Gaussian kernel.
+        Run method of the module.
         
         Returns
         -------
@@ -374,7 +376,7 @@ class IFUPCAPSFSubtractionModule(ProcessingModule):
     def __init__(
         self,
         name_in: str = 'select_range',
-        image_in_tag: str = 'initial_spectrum',
+        image_in_tag: str = 'datacubes',
         wv_in_tag: str = 'wavelength',
         image_out_tag: str = 'PSF_sub',
         pca_out_tag: str = 'PCA_model',
@@ -431,7 +433,7 @@ class IFUPCAPSFSubtractionModule(ProcessingModule):
     
     def run(self) -> None:
         """
-        Run method of the module. Convolves the images with a Gaussian kernel.
+        Run method of the module.
         
         Returns
         -------
@@ -601,7 +603,7 @@ class IFUPCAModule(ProcessingModule):
     def __init__(
         self,
         name_in: str = 'select_range',
-        image_in_tag: str = 'initial_spectrum',
+        image_in_tag: str = 'datacubes',
         wv_in_tag: str = 'wavelength',
         image_out_tag: str = 'PSF_sub',
         pca_number: int = 5
@@ -637,7 +639,7 @@ class IFUPCAModule(ProcessingModule):
     
     def run(self) -> None:
         """
-        Run method of the module. Convolves the images with a Gaussian kernel.
+        Run method of the module.
         
         Returns
         -------
@@ -686,4 +688,101 @@ class IFUPCAModule(ProcessingModule):
         
         self.m_image_out_port.copy_attributes(self.m_image_in_port)
         self.m_image_out_port.add_history("PCA subtraction",'PC = %i' % self.pca_number)
+        self.m_image_out_port.close_port()
+
+class IFUSpatialPCAADIModule(ProcessingModule):
+    """
+    Module to subtract the PSF using PCA/ADI. This module does not stack the data (see CrossCorrelationPreparationModule)
+    """
+
+    __author__ = 'Jean Hayoz'
+        
+    @typechecked
+    def __init__(
+        self,
+        name_in: str = 'PCA_ADI',
+        image_in_tag: str = 'datacubes',
+        wv_in_tag: str = 'wavelength',
+        image_out_tag: str = 'PSF_sub',
+        pca_number: int = 5
+    ) -> None:
+        """
+        Parameters
+        ----------
+        name_in: str
+            Unique name of the module instance.
+        image_in_tag: str
+            Tag of the database entry that is read as input.
+        stellar_spectra_in_tag: str
+            Tag of the database entry that is read as input.
+        image_out_tag: str
+            Tag of the database entry that is written as output. Should be
+        different from *image_in_tag*.
+        pca_number: int
+            number of principal components to remove
+        
+        Returns
+        -------
+        NoneType
+            None
+        """
+        
+        super(IFUSpatialPCAADIModule, self).__init__(name_in)
+        
+        self.m_image_in_port = self.add_input_port(image_in_tag)
+        self.m_wv_in_port = self.add_input_port(wv_in_tag)
+        self.m_image_out_port = self.add_output_port(image_out_tag)
+        
+        self.pca_number = pca_number
+    
+    def run(self) -> None:
+        """
+        Run method of the module.
+        
+        Returns
+        -------
+        NoneType
+            None
+        """
+        # to-do
+        # allow possibility to shift images before combining, rotate as well
+        # should use full time stack to build up model
+        # then use it to subtract PSF
+        # then shift and derotate images
+        # mean or median combine the residuals
+
+
+        # reshape the input data
+        data = self.m_image_in_port.get_all()
+        wavelength = self.m_wv_in_port.get_all()
+        datacubes = select_cubes(data,wavelength)
+        len_cube,len_wvl,len_x,len_y = np.shape(datacubes)
+        
+        residuals = np.zeros_like(datacubes)
+        start_time = time.time()
+        for wvl_i in range(len_wvl):
+            progress(wvl_i, len_wvl, 'Running IFUSpatialPCAADIModule...', start_time)
+            
+            image_cube = datacubes[:,wvl_i,:,:]
+            # reshape
+            pix_list = np.transpose(image_cube,axes=(1,2,0)).reshape((len_x*len_y,len_cube))
+            # subtract the mean value first
+            mean_psf = np.nanmean(pix_list,axis=0)
+            pix_list_res = pix_list - mean_psf
+
+            # PCA
+            pca_sklearn = PCA(n_components=self.pca_number, svd_solver="arpack",whiten=True)
+            pca_sklearn.fit(pix_list_res)
+            pca_representation = pca_sklearn.transform(pix_list_res)
+            model_1d = pca_sklearn.inverse_transform(pca_representation)
+            # reshape PCA model
+            model = np.transpose((model_1d + mean_psf).reshape((len_x,len_y,len_cube)),axes=(2,0,1))
+            # PCA subtraction
+            residuals[:,wvl_i,:,:] = image_cube - model
+            
+        self.m_image_out_port.set_all(residuals.reshape((-1,len_x,len_y)))
+        
+        
+        self.m_image_out_port.copy_attributes(self.m_image_in_port)
+        self.m_image_out_port.add_history("PCA/ADI subtraction",'PC = %i' % self.pca_number)
         self.m_image_out_port.close_port()

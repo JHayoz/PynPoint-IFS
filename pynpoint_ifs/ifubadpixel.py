@@ -30,27 +30,33 @@ class NanFilterModule(ProcessingModule):
     __author__ = 'Gabriele Cugno'
 
     @typechecked
-    def __init__(self,
-                 name_in: str = "Substitute_NaNs",
-                 image_in_tag: str = "im_arr",
-                 image_out_tag: str = "im_arr_Nan",
-                 local: bool = False,
-                 local_size: int = 3):
+    def __init__(
+        self,
+        name_in: str = "Substitute_NaNs",
+        image_in_tag: str = "im_arr",
+        image_out_tag: str = "im_arr_Nan",
+        local: bool = False,
+        local_size: int = 3
+    ) -> None:
         """
-            Constructor of NanFilterModule.
-            
-            :param name_in: Unique name of the module instance.
-            :type name_in: str
-            :param image_in_tag: Tag of the database entry that is read as input.
-            :type image_in_tag: str
-            :param image_out_tag: Tag of the database entry that is written as output. Should be
-            different from *image_in_tag*.
-            :type image_out_tag: str
-            :param local: Boolean to decide if the substitution occurs with the median of the image or with the median estimated from the surrounding pixels.
-            :type local: bool
-            
-            :return: None
-            """
+        Parameters
+        ----------
+        
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        image_out_tag : str
+            Tag of the database entry that is written as output. Should be
+        different from *image_in_tag*.
+        local : bool
+            Boolean to decide if the substitution occurs with the median of the image or with the median estimated from the surrounding pixels.
+        
+        Returns
+        -------
+        NoneType
+            None
+        """
         
         super(NanFilterModule, self).__init__(name_in)
         
@@ -61,12 +67,15 @@ class NanFilterModule(ProcessingModule):
         self.m_local_size = local_size
 
 
-    def run(self):
+    def run(self) -> None:
         """
-            Run method of the module. Look for NaNs or zeros and substitute them.
-            
-            :return: None
-            """
+        Run method of the module. Look for NaNs or zeros and substitute them.
+        
+        Returns
+        -------
+        NoneType
+            None
+        """
 
 
         def clean_NaNs(image, ind):
@@ -101,34 +110,39 @@ class OutlierCorrectionModule(ProcessingModule):
     __author__ = 'Jean Hayoz'
 
     @typechecked
-    def __init__(self,
-                 name_in: str = 'substitute_NaNs',
-                 image_in_tag: str = 'im_arr',
-                 image_out_tag: str = 'im_arr_Nan',
-                 outlier_sigma: float = 8.,
-                 filter_sigma: float = 11.,
-                 replace_method: str = 'smooth',
-                 cpu: int = 10):
+    def __init__(
+        self,
+        name_in: str = 'substitute_NaNs',
+        image_in_tag: str = 'im_arr',
+        image_out_tag: str = 'im_arr_Nan',
+        outlier_sigma: float = 8.,
+        filter_sigma: float = 11.,
+        replace_method: str = 'smooth',
+        cpu: int = 10
+    ) -> None:
         """
         Constructor of OutlierCorrectionModule.
         
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param image_out_tag: Tag of the database entry that is written as output. Should be
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        image_out_tag : str
+            Tag of the database entry that is written as output. Should be
         different from *image_in_tag*.
-        :type image_out_tag: str
-        :param outlier_sigma: number of sigmas used to tag outliers. The "sigma" is calculated by the median absolute deviation.
-        :type outlier_sigma: float
-        :param filter_sigma: standard deviation of the Gaussian filter used to smoothe the spectrum.
-        :type filter_sigma: float
-        :param replace_method: if 'smooth', then replaces outliers by the smoothed spectrum, else replaces outliers by 0
-        :type replace_method: str
-        :param cpu: if cpu > 1, then parallelise the operation using joblib
-        :type cpu: int
+        outlier_sigma : float
+            number of sigmas used to tag outliers. The "sigma" is calculated by the median absolute deviation.
+        filter_sigma : float
+            standard deviation of the Gaussian filter used to smoothe the spectrum.
+        replace_method : str
+            if 'smooth', then replaces outliers by the smoothed spectrum, else replaces outliers by 0
+        cpu : int
+            if cpu > 1, then parallelise the operation using joblib
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(OutlierCorrectionModule, self).__init__(name_in)
@@ -142,11 +156,14 @@ class OutlierCorrectionModule(ProcessingModule):
         self.m_cpu = cpu
 
 
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module. Look for outliers and substitute them.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
 
         def replace_outliers_MAD(spectrum,filter_sigma=11,outlier_sigma=11,replace_method = 'smooth'):

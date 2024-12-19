@@ -263,7 +263,7 @@ class FinerGridInterpolationModule(ProcessingModule):
     
     def run(self):
         """
-        Run method of the module. Unfold 2D detector images in 3D cubes.
+        Run method of the module.
         
         Returns
         -------
