@@ -2,7 +2,8 @@ import numpy as np
 import pandas as pd
 from scipy.ndimage import gaussian_filter,median_filter
 from scipy.signal import savgol_filter,medfilt,resample
-from scipy.interpolate import splrep, BSpline
+from scipy.interpolate import splrep, BSpline, interp1d
+from scipy.optimize import curve_fit
 import pynpoint as pp
 import warnings
 from astropy.modeling import models, fitting
@@ -717,32 +718,72 @@ def check_oh_correction(pipeline,sequence_files_reduced,sigma=3):
         remove_frames[which] = file_id_sorted[mask_bad][indices_mask]
     
     return remove_frames
-def get_ticks(img,star_pos,pixscale,tick_sep=0.5,minor_tick_sep = 0.1):
-    lenx=len(img)
-    ticks_x = np.arange(lenx)
-    ticks_y = np.arange(lenx)
+def gaussian(x,mu,std,a):
+    return a*np.exp(-0.5*((x-mu)**2)/std**2)
+def get_mask_circle(lenx,leny,position,radius):
+    X,Y = np.meshgrid(np.arange(lenx),np.arange(leny))
+    mask = (Y - position[1])**2 + (X - position[0])**2 > radius**2
+    return mask
+def get_mask_annulus(lenx,leny,position,radius,width):
+    mask_annulus_out = get_mask_circle(lenx,leny,position,radius=radius + width/2)
+    mask_annulus_in = get_mask_circle(lenx,leny,position,radius=radius - width/2)
+    mask_annulus = np.logical_and(~mask_annulus_out,mask_annulus_in)
+    return mask_annulus
+def calculate_molmap_metric(ccf_data,drv,planet_pos,star_pos,rv_planet,mask_width=5,n_bins=20,crop=5,method='annulus'):
+    ccf_data_crop = ccf_data[:,crop:-crop,crop:-crop]
+    planet_pos_crop = planet_pos - crop
+    star_pos_crop = star_pos - crop
+    lendrv,lenx,leny=np.shape(ccf_data_crop)
+    rv_max_i=np.argmin(np.abs(drv-rv_planet))
+    ccf_section = ccf_data_crop[rv_max_i,]
     
-    ticks_x = np.arange(lenx)
-    sky_x = -(ticks_x-star_pos[0])*pixscale
-    low_x = np.round(np.min(sky_x)/tick_sep)*tick_sep
-    high_x = np.round(np.max(sky_x)/tick_sep)*tick_sep
-    nb_ticks = int((high_x-low_x)/tick_sep)+1
-    ticks_x_labels = np.linspace(low_x,high_x,nb_ticks)
-    tick_x_pos = (-ticks_x_labels)/pixscale + star_pos[0]
+    max_ccf_position = np.flip(np.array(np.unravel_index(np.nanargmax(ccf_section),np.shape(ccf_section))))
+    if np.linalg.norm(max_ccf_position-planet_pos_crop) < 2:
+        actual_planet_pos = max_ccf_position
+    else:
+        actual_planet_pos = planet_pos_crop
+    ccf_plt = ccf_data_crop[:,int(actual_planet_pos[1]),int(actual_planet_pos[0])]
+    # create mask
     
-    nb_ticks = int((high_x-low_x)/minor_tick_sep)+1
-    ticks_x_labels_minor = np.linspace(low_x,high_x,nb_ticks)
-    tick_x_pos_minor = (-ticks_x_labels_minor)/pixscale + star_pos[0]
+    # X,Y = np.meshgrid(np.arange(lenx),np.arange(leny))
+    dist_pl_st = np.linalg.norm(star_pos_crop - actual_planet_pos)
+    # mask_planet = (Y - actual_planet_pos[1])**2 + (X - actual_planet_pos[0])**2 > mask_width**2
+    mask_planet = get_mask_circle(lenx,leny,actual_planet_pos,radius=mask_width)
     
-    ticks_y = np.arange(lenx)
-    sky_y = (ticks_y-star_pos[1])*pixscale
-    low_y = np.round(np.min(sky_y)/tick_sep)*tick_sep
-    high_y = np.round(np.max(sky_y)/tick_sep)*tick_sep
-    nb_ticks = int((high_y-low_y)/tick_sep)+1
-    ticks_y_labels = np.linspace(low_y,high_y,nb_ticks)
-    tick_y_pos = (ticks_y_labels)/pixscale + star_pos[1]
+    # mask_annulus = np.logical_and((Y - star_pos_crop[1])**2 + (X - star_pos_crop[0])**2 < (dist_pl_st + mask_width/2)**2,(Y - star_pos_crop[1])**2 + (X - star_pos_crop[0])**2 > (dist_pl_st - mask_width/2)**2)
+    if method=='annulus':
+        mask_annulus = get_mask_annulus(lenx,leny,star_pos_crop,dist_pl_st,mask_width)
+    else:
+        mask_annulus = get_mask_annulus(lenx,leny,star_pos_crop,dist_pl_st,dist_pl_st)
+    mask_annulus_wo_pl = mask_annulus*mask_planet
     
-    nb_ticks = int((high_y-low_y)/minor_tick_sep)+1
-    ticks_y_labels_minor = np.linspace(low_y,high_y,nb_ticks)
-    tick_y_pos_minor = (ticks_y_labels_minor)/pixscale + star_pos[1]
-    return ticks_x_labels,tick_x_pos,ticks_x_labels_minor,tick_x_pos_minor,ticks_y_labels,tick_y_pos,ticks_y_labels_minor,tick_y_pos_minor
+    # get all values
+    all_vals = ccf_data_crop[rv_max_i,mask_annulus_wo_pl].flatten()
+    all_vals = all_vals[~np.isnan(all_vals)]
+    # normalize
+    mean,std=np.mean(all_vals),np.std(all_vals)
+    all_vals_norm = (all_vals-mean)/std
+    # apply to max of CCF
+    ccf_pl_val = (np.max(ccf_plt)-mean)/std
+    
+    # create histogram
+    bins_vals,bins_pos = np.histogram(all_vals_norm,bins=n_bins)
+    bins_pos_mid= 0.5*(bins_pos[1:]+bins_pos[:-1])
+    med_val = np.median(all_vals_norm)
+    mad_val = median_abs_deviation(all_vals_norm)
+    # fit with a gaussian
+    mu_guess = bins_pos_mid[np.argmax(bins_vals)]
+    std_guess=1.5*np.std(bins_vals)
+    a_guess=np.max(bins_vals)/2
+    
+    popt,pcov = curve_fit(
+        f=gaussian, 
+        xdata=bins_pos_mid, 
+        ydata=bins_vals, 
+        p0=[mu_guess,std_guess,a_guess], 
+        sigma=None
+    )
+    
+    snr_ttest = np.abs((ccf_pl_val - popt[0])/popt[1])
+    snr_ttest_med_mad =np.abs((ccf_pl_val - med_val)/mad_val)
+    return snr_ttest,bins_vals,bins_pos,popt,ccf_pl_val

@@ -198,6 +198,7 @@ class CrossCorrelationPreparationModule(ProcessingModule):
         pixscale = self.m_image_in_port.get_attribute("PIXSCALE")
         parang = self.m_image_in_port.get_attribute("PARANG")
         size = self.m_image_in_port.get_shape()[-1]
+        lencubewvl,lenx,leny = self.m_image_in_port.get_shape()
         
         if type(self.m_shift_cubes_in_tag) == str:
             shift_init = self.m_shift_in_port.get_all()
@@ -216,7 +217,7 @@ class CrossCorrelationPreparationModule(ProcessingModule):
 
         shift = np.array([shift_y,shift_x]).T
 
-        final_cube = []
+        final_cube = np.zeros((len(nspectrum),nspectrum[0],size,size))
     
         mask_arr = np.zeros((len(nspectrum), size,size))
         mask_arr_shift = np.zeros_like(mask_arr)
@@ -233,9 +234,7 @@ class CrossCorrelationPreparationModule(ProcessingModule):
                 shift_vector=shift[i],
                 derotate=self.m_rotate,
                 derotate_angle=parang[i])
-            final_cube.append(cube_rot)
-        
-        final_cube = np.array(final_cube)
+            final_cube[i,:,:,:] = cube_rot
 
         mask_sum = np.sum(mask_arr_rot, axis=0)
         mask_final = np.where(mask_sum>=len(nspectrum)*0.8, True, False)
@@ -244,29 +243,28 @@ class CrossCorrelationPreparationModule(ProcessingModule):
         if self.m_stack==False:
             self.m_image_out_port.set_all(final_cube.reshape(np.shape(final_cube)[0]*np.shape(final_cube)[1], np.shape(final_cube)[3],np.shape(final_cube)[3]))
         else:
-            cube_median = []
+            cube_median = np.zeros((nspectrum[0],lenx,leny))
             for k in range(nspectrum[0]):
                 # cube_wv = np.where(np.abs(mask_arr_rot)>0.1, final_cube[:,k,:,:], np.nan)
                 cube_wv = final_cube[:,k,:,:]
                 if self.m_combine == 'median':
                     combined_cube = np.nanmedian(cube_wv, axis=0)
-                    cube_median.append(np.where(mask_final, combined_cube, np.nan))
+                    cube_median[k] = np.where(mask_final, combined_cube, np.nan)
                     # cube_median.append(combined_cube)
                 elif self.m_combine == 'mean':
                     combined_cube = np.nanmean(cube_wv, axis=0)
-                    cube_median.append(np.where(mask_final, combined_cube, np.nan))
+                    cube_median[k] = np.where(mask_final, combined_cube, np.nan)
                     # cube_median.append(combined_cube)
                 elif self.m_combine == 'combine':
                     n_samples = np.sum(mask_arr_shift,axis=0)
                     n_samples_corr = np.where(n_samples != 0, n_samples, 1)
                     combined_cube = np.nansum(cube_wv, axis=0)/n_samples_corr
-                    cube_median.append(combined_cube)
+                    cube_median[k] = combined_cube
                 else:
                     combined_cube = np.nanmedian(cube_wv, axis=0)
-                    cube_median.append(np.where(mask_final, combined_cube, np.nan))
+                    cube_median[k] = np.where(mask_final, combined_cube, np.nan)
                     # cube_median.append(combined_cube)
                 
-            cube_median = np.array(cube_median)
             self.m_image_out_port.set_all(cube_median)
         
         self.m_mask_out_port.set_all(mask_output)

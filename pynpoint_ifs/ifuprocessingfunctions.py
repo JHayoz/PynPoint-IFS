@@ -42,17 +42,18 @@ def do_PCA_sub(cube,pca_number):
 
 def do_derotate_shift(cube,shift,shift_vector,derotate,derotate_angle):
     len_wvl,len_x,len_y = np.shape(cube)
-    mask_arr = np.where(cube[0]==np.nan, False, True)
-    
+    mask_arr = np.where(np.logical_or(cube[0]==0,np.isnan(cube[0])), False, True).astype(float)
+    mask_arr_shift = np.zeros_like(mask_arr)
+    mask_arr_rot = np.zeros_like(mask_arr)
     if shift:
-        mask_arr_shift = shift_image(mask_arr, (-shift_vector[0], -shift_vector[1]), "spline")
+        mask_arr_shift[:,:] = shift_image(mask_arr, (-shift_vector[0], -shift_vector[1]), "spline")
     else:
-        mask_arr_shift = copy.copy(mask_arr)
+        mask_arr_shift[:,:] = copy.copy(mask_arr)
     
     if derotate:
-        mask_arr_rot = rotate(mask_arr_shift, -derotate_angle, reshape=False)
+        mask_arr_rot[:,:] = rotate(mask_arr_shift, -derotate_angle, reshape=False)
     else:
-        mask_arr_rot = copy.copy(mask_arr_shift)
+        mask_arr_rot[:,:] = copy.copy(mask_arr_shift)
     
     cube_shift = np.zeros_like(cube)
     cube_rot = np.zeros_like(cube)

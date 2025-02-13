@@ -455,7 +455,7 @@ class IFUPCAPSFSubtractionModule(ProcessingModule):
         wavelength = self.m_wv_in_port.get_all()
         datacubes = select_cubes(data,wavelength)
         len_cube,len_wvl,len_x,len_y = np.shape(datacubes)
-
+        start_time = time.time()
         if self.m_method == 'full':
             # reshape: time, spatial x and y all into one axis, second axis is spectrum
             # output: (time x X x Y, wvl)
@@ -483,7 +483,7 @@ class IFUPCAPSFSubtractionModule(ProcessingModule):
             self.m_pca_out_port.set_all(model_psf.reshape((-1,len_x,len_y)))
         elif self.m_method == 'single':
             for cube_i in range(len_cube):
-                print('Progress %.2f' % (cube_i*100/len_cube),end='\n')
+                progress(cube_i, len_cube, 'Running IFUPCAPSFSubtractionModule...', start_time)
                 pix_list_all = np.transpose(datacubes[cube_i],axes=(1,2,0)).reshape((-1,len_wvl))
                 if self.m_use_mask:
                     X,Y = np.meshgrid(np.arange(len_x),np.arange(len_y))
@@ -492,7 +492,7 @@ class IFUPCAPSFSubtractionModule(ProcessingModule):
                     for k in range(len_wvl):
                         mask_cube[k,:,:] = mask
                     pix_list_masked = np.transpose(datacubes[cube_i][~mask_cube].reshape((len_wvl,-1)))
-                    print('Successfully masked the region')
+                    
                 else:
                     pix_list_masked = pix_list_all
                 
@@ -507,7 +507,7 @@ class IFUPCAPSFSubtractionModule(ProcessingModule):
                 
                 # check for nans
                 assert(np.sum(np.isnan(pix_list_res)) == 0)
-                print('Fitting PCA')
+                
                 pca_sklearn.fit(pix_list_res)
                 pca_representation = pca_sklearn.transform(pix_list_res)
                 model_psf_1d = pca_sklearn.inverse_transform(pca_representation)
@@ -516,7 +516,7 @@ class IFUPCAPSFSubtractionModule(ProcessingModule):
                 # model_psf_1d_all = model_psf_1d+spec_mean
                 model_psf = np.transpose((model_psf_1d_all).reshape((len_x,len_y,len_wvl)),axes=(2,0,1))
                 residuals = datacubes[cube_i,:,:,:] - model_psf[:,:,:]
-                print('Appending residuals and model')
+                
                 self.m_image_out_port.append(residuals)
                 self.m_pca_out_port.append(model_psf)
         elif self.m_method == 'normalize_full':
@@ -550,6 +550,7 @@ class IFUPCAPSFSubtractionModule(ProcessingModule):
             self.m_image_out_port.set_all(residuals.reshape((-1,len_x,len_y)))
         elif self.m_method == 'normalize_single':
             for cube_i in range(len_cube):
+                progress(cube_i, len_cube, 'Running IFUPCAPSFSubtractionModule...', start_time)
                 datacube = datacubes[cube_i]
                 total_flux = np.sum(datacube,axis=0)
                 total_flux_non_zeros = np.where(total_flux != 0, total_flux, 1)

@@ -145,10 +145,10 @@ class IFUSpectrumExtractionModule(ProcessingModule):
             for wvl_i in range(lenwvl):
                 if position_frames:
                     # different position for every frame within a cube
-                    obj_pos = fitparam_obj[i*nspectrum_i + wvl_i,:] + np.array([leny,lenx])/2 - coord_origin_shift
+                    obj_pos = fitparam_obj[i*nspectrum_i + wvl_i,:] + np.array([leny-1,lenx-1])/2 # - coord_origin_shift
                 else:
                     # same position for every frame within a cube
-                    obj_pos = fitparam_obj[i,:] + np.array([leny,lenx])/2 - coord_origin_shift
+                    obj_pos = fitparam_obj[i,:] + np.array([leny-1,lenx-1])/2 # - coord_origin_shift
                 # background
                 if self.m_extract_bk:
                     if self.m_ap_position=='around':
