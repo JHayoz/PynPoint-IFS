@@ -20,7 +20,8 @@ setup(
                 'seaborn',
                 'spectres',
                 'petitRADTRANS',
-                'photutils'],
+                'photutils',
+                'skycalc_ipy'],
 )
 
 # Dependencies: Pynpoint, petitRADTRANS?, spectres?
