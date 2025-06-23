@@ -349,9 +349,10 @@ class IFUContinuumRemovalModule(ProcessingModule):
             len_wvl,len_x,len_y = np.shape(datacube)
             for i in range(len_x):
                 for j in range(len_y):
-                    smooth_spectrum = gaussian_filter(datacube[:,i,j],self.m_gauss_sigma)
-                    outliers_replaced = replace_outliers(smooth_spectrum, sigma=self.m_outliers_sigma)
-                    smoothed_cube[:,i,j] = gaussian_filter(outliers_replaced,self.m_gauss_sigma)
+                    smoothed_cube[:,i,j] = gaussian_filter(datacube[:,i,j],self.m_gauss_sigma)
+                    # smooth_spectrum = gaussian_filter(datacube[:,i,j],self.m_gauss_sigma)
+                    # outliers_replaced = replace_outliers(smooth_spectrum, sigma=self.m_outliers_sigma)
+                    # smoothed_cube[:,i,j] = gaussian_filter(outliers_replaced,self.m_gauss_sigma)
 
 
             # PSf subtraction

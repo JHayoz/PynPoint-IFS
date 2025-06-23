@@ -10,11 +10,13 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 from scipy.interpolate import splrep,BSpline
 from scipy.ndimage import gaussian_filter
+import matplotlib.pyplot as plt
 
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
 
-from pynpoint_ifs.ifufluxcalibration import create_planet_mask
+from pynpoint_ifs.ifu_utils_hidden import create_planet_mask
+from pynpoint_ifs.ifu_plotting import plot_circle
 
 class IFUBackgroundSubtractionModule(ProcessingModule):
     """
@@ -30,12 +32,13 @@ class IFUBackgroundSubtractionModule(ProcessingModule):
         image_in_tag: str = 'raw',
         image_out_tag: str = 'raw_bksub',
         background_out_tag: str = 'bk',
-        planet_shift_param_tag: str = 'star_position',
-        star_shift_param_tag: str = None,
+        planet_shift_param_tag: str = 'planet_position',
+        star_shift_param_tag: str = 'star_position',
         mask_size_planet: float = 6.,
         mask_size_star: float = 12.,
         filter_sigma: float = 40.,
         background_method: str = 'spline',
+        plot: bool = False
     ) -> None:
         """
         Parameters
@@ -69,7 +72,7 @@ class IFUBackgroundSubtractionModule(ProcessingModule):
         self.m_image_out_port = self.add_output_port(image_out_tag)
         self.m_background_out_port = self.add_output_port(background_out_tag)
         self.m_planet_shift_in_port = self.add_input_port(planet_shift_param_tag)
-        if not star_shift_param_tag is None:
+        if mask_size_star > 0:
             self.m_star_shift_in_port = self.add_input_port(star_shift_param_tag)
             self.star_mask = True
         else:
@@ -80,6 +83,7 @@ class IFUBackgroundSubtractionModule(ProcessingModule):
         self.mask_size_star = mask_size_star
         self.filter_sigma = filter_sigma
         self.background_method = background_method
+        self.m_plot = plot
     
     
     def run(self) -> None:
@@ -112,7 +116,7 @@ class IFUBackgroundSubtractionModule(ProcessingModule):
                 # adding star mask
                 star_mask = create_planet_mask(im_shape=np.shape(datacube),size=(self.mask_size_star,star_pos[i,1],star_pos[i,0])).astype(bool)
                 planet_mask = np.logical_and(planet_mask,star_mask)
-            
+                
             background = np.zeros_like(datacube)
             # background_spectrum_smooth = np.zeros((lenwvl,lenx))
             # background_slit_model = np.zeros((leny,lenx))
@@ -120,21 +124,25 @@ class IFUBackgroundSubtractionModule(ProcessingModule):
                 slitlet = datacube[:,slit_i,:]
                 mask_slit = planet_mask[:,slit_i,:]
                 all_spectra = np.array([slitlet[:,col_i] for col_i in range(leny) if mask_slit[0,col_i] == 1])
-                
-                background_spectrum = np.mean(all_spectra,axis=0)
+                # get non-masked data
+                background_spectrum = np.median(all_spectra,axis=0)
+                # smooth out background over spectral dimension
                 background_spectrum_smooth_tmp = gaussian_filter(background_spectrum,sigma=self.filter_sigma)
-                background_spectrum_zero = np.mean(background_spectrum_smooth_tmp)
-                
-                background_slit = np.mean(all_spectra,axis=1)
+                # median background value
+                background_spectrum_zero = np.median(background_spectrum_smooth_tmp)
+                # get spatial variation
+                background_slit = np.median(all_spectra,axis=1)
+                # get column index of non-masked data
                 column_indices_all = np.arange(leny)
                 column_indices = column_indices_all[mask_slit[0,:]]
+                # fit a spline to the spatial variation of the background
                 background_slit_spl = splrep(x = column_indices, y = background_slit, s=2)
                 background_slit_model_tmp = BSpline(*background_slit_spl)(column_indices_all)
                 if self.background_method == 'spline':
-                    background_slit_zero = np.mean(background_slit_model_tmp)
+                    background_slit_zero = np.median(background_slit_model_tmp)
                 elif self.background_method == 'median':
                     background_slit_model_tmp = np.ones_like(background_slit_model_tmp)*np.median(background_slit_model_tmp)
-                    background_slit_zero = np.mean(background_slit_model_tmp)
+                    background_slit_zero = np.median(background_slit_model_tmp)
             
                 background[:,slit_i,:] = background_slit_model_tmp[np.newaxis,:]+(background_spectrum_smooth_tmp - background_spectrum_zero)[:,np.newaxis]
                 # background_spectrum_smooth[:,slit_i] = background_spectrum_smooth_tmp
@@ -143,6 +151,19 @@ class IFUBackgroundSubtractionModule(ProcessingModule):
             result = datacube - background
             self.m_image_out_port.append(result)
             self.m_background_out_port.append(background)
+            
+            # plot the masks
+            if self.m_plot:
+                image = np.nanmean(datacube,axis=0)
+                fig,axes = plt.subplots(ncols=2,figsize=(8,4))
+                axes[0].imshow(image,vmin=np.nanpercentile(image,5),vmax=np.nanpercentile(image,95),origin='lower')
+                image_clean = np.nanmean(result,axis=0)
+                axes[1].imshow(image_clean,vmin=np.nanpercentile(image_clean,5),vmax=np.nanpercentile(image_clean,95),origin='lower')
+                for ax_i in range(2):
+                    plot_circle(axes[ax_i],position=planet_pos[i] + lenx/2,radius=self.mask_size_planet,color='w')
+                    if self.star_mask:
+                        plot_circle(axes[ax_i],position=star_pos[i] + lenx/2,radius=self.mask_size_star,color='w')
+                plt.show()
             
 
         self.m_image_out_port.copy_attributes(self.m_image_in_port)

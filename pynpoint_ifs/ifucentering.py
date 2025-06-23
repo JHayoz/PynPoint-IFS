@@ -11,9 +11,11 @@ import copy
 from typing import Union, Tuple
 from typeguard import typechecked
 
-from scipy.ndimage import generic_filter
+from scipy.ndimage import gaussian_filter
 from scipy.signal import medfilt
 import numpy as np
+import matplotlib.pyplot as plt
+from photutils.centroids import centroid_1dg,centroid_2dg,centroid_com,centroid_quadratic,centroid_sources
 
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
@@ -257,3 +259,166 @@ class FitCenterCustomModule(ProcessingModule):
         self.m_fit_out_port.copy_attributes(self.m_image_in_port)
         self.m_fit_out_port.add_history("Center", "cube")
         self.m_fit_out_port.close_port()
+
+class FitCentroidsModule(ProcessingModule):
+    """
+    Module to fit the position of several sources in the field of view using centroids.
+    """
+    __author__ = 'Jean Hayoz'
+    
+    @typechecked
+    def __init__(
+        self,
+        name_in: str,
+        image_in_tag: str,
+        wvl_in_tag: str,
+        fit_out_tag: str,
+        collapse_wavelength: bool = True,
+        centroid_model: str = 'centroid_2dg',
+        initial_guess: np.ndarray = None,
+        filter_sigma: float = 3,
+        box: int = 10,
+        crop: int = 0,
+        plot: bool = True,
+    ) -> None:
+        """
+        Parameters
+        ----------
+        
+        name_in : str
+            unique name of the module
+        image_in_tag : str
+            Tag of the database entry that is read as input datacube
+        wvl_in_tag : str
+            Tag of the database entry that is read as wavelength axis
+        fit_out_tag : str
+            Tag of the database entry that is used as output for the fit parameters of the image center
+        centroid_model : str
+            Model to use for the fit (centroid_quadratic, centroid_2dg, centroid_1dg, centroid_com)
+        initial_guess : np.ndarray
+            Initial guess for the position of the sources in the image. The format should be [[x1,y1],[x2,y2],...,[xn,yn]] for n objects to fit. If None, then just fit one source.
+        filter_size : float
+            standard deviation of the gaussian filter used to smoothe the image
+        box : int
+            (2box+1,2box+1) are the dimensions of the square, centered at the maximum of the image, used to estimate the parameters of the fit (the amplitude of the model)
+        
+        Returns
+        -------
+        NoneType
+            None
+        """
+        
+        super(FitCentroidsModule, self).__init__(name_in)
+        
+        self.m_image_in_port = self.add_input_port(image_in_tag)
+        self.m_wvl_in_port = self.add_input_port(wvl_in_tag)
+
+        self.m_collapse_wavelength = collapse_wavelength
+        self.m_initial_guess = initial_guess
+        self.m_filter_sigma = filter_sigma
+        self.m_box = box
+        self.m_crop = crop
+        self.m_plot = plot
+        
+        # determine number of sources to fit
+        if initial_guess is None:
+            self.m_number_sources = 1
+            self.m_fit_out_port  = self.add_output_port(fit_out_tag)
+        else:
+            self.m_number_sources = len(self.m_initial_guess)
+            self.m_fit_out_port = {}
+            for source_i in range(self.m_number_sources):
+                self.m_fit_out_port[source_i]  = self.add_output_port(fit_out_tag + ('_source_%i' % source_i))
+        self.m_fit_out_port_relative = self.add_output_port(fit_out_tag + '_relative')
+        # get the right centroid function
+        self.m_centroid_model = centroid_model
+        if centroid_model == 'centroid_1dg':
+            self.m_centroid_model = centroid_1dg
+        elif centroid_model == 'centroid_2dg':
+            self.m_centroid_model = centroid_2dg
+        elif centroid_model == 'centroid_com':
+            self.m_centroid_model = centroid_com
+        elif centroid_model == 'centroid_quadratic':
+            self.m_centroid_model = centroid_quadratic
+        else:
+            raise RuntimeError(
+                    f"The centroid_model argument must be one of centroid_1dg, centroid_2dg, centroid_com, centroid_quadratic."
+                )
+        
+    def run(self) -> None:
+        """
+        Run method of the module. Fits the position of the star with respect to the middle of the frame
+        
+        Returns
+        -------
+        NoneType
+            None
+        """
+        lenwvl = self.m_wvl_in_port.get_shape()[0]
+        lendatacube,lenx,leny = self.m_image_in_port.get_shape()
+
+        # fit individual images or just the wavelength-averaged cubes
+        if self.m_collapse_wavelength:
+            nframes = self.m_image_in_port.get_shape()[0]//lenwvl
+            message_history = 'Collapsed wavelength'
+            print('Collapsing wavelength')
+        else:
+            nframes = self.m_image_in_port.get_shape()[0]
+            message_history = 'Fit each image separately'
+            print('Considering this an imaging dataset')
+        
+        params = np.zeros((nframes,self.m_number_sources,14))
+        start_time = time.time()
+        for img_i in range(nframes):
+            progress(img_i, nframes, 'Running FitCentroidsModule...', start_time)
+            if self.m_collapse_wavelength:
+                image = np.mean(self.m_image_in_port[img_i*lenwvl:(img_i + 1)*lenwvl, :, :],axis=0)
+            else:
+                image = self.m_image_in_port[img_i, :, :]
+            
+            image_crop = np.zeros_like(image)
+            if self.m_crop > 0:
+                image_crop[self.m_crop:-self.m_crop,self.m_crop:-self.m_crop] = image[self.m_crop:-self.m_crop,self.m_crop:-self.m_crop]
+            else:
+                image_crop[:,:] = image[:,:]
+            
+            image_smooth = gaussian_filter(image_crop,self.m_filter_sigma)
+            
+            if self.m_number_sources == 1:
+                x1, y1 = self.m_centroid_model(image_smooth)
+                params[img_i,0,0] = x1-lenx/2
+                params[img_i,0,2] = y1-leny/2
+            else:
+                xs, ys = centroid_sources(image_smooth, xpos=self.m_initial_guess[:,0], ypos=self.m_initial_guess[:,1], box_size=self.m_box,
+                        centroid_func=self.m_centroid_model)
+                for source_i in range(self.m_number_sources):
+                    params[img_i,source_i,0] = xs[source_i]-lenx/2
+                    params[img_i,source_i,2] = ys[source_i]-leny/2
+            
+            if self.m_plot:
+                plt.figure()
+                plt.imshow(image_smooth,vmin=np.nanpercentile(image_smooth,5),vmax=np.nanpercentile(image_smooth,95),origin='lower')
+                for source_i in range(self.m_number_sources):
+                    plt.plot(params[img_i,source_i,0]+lenx/2,params[img_i,source_i,2]+leny/2,marker='.',markersize=5,label='Source %i' % source_i)
+                plt.legend()
+                plt.title('Image %i' % img_i)
+                plt.show()
+            
+        if self.m_number_sources == 1:
+            self.m_fit_out_port.set_all(params[:,0,:], data_dim=2)
+            self.m_fit_out_port.copy_attributes(self.m_image_in_port)
+            self.m_fit_out_port.add_history("Fit Center", message_history)
+            self.m_fit_out_port.close_port()
+        else:
+            for source_i in range(self.m_number_sources):
+                self.m_fit_out_port[source_i].set_all(params[:,source_i,:], data_dim=2)
+                self.m_fit_out_port[source_i].copy_attributes(self.m_image_in_port)
+                self.m_fit_out_port[source_i].add_history("Fit Center", message_history)
+                self.m_fit_out_port[source_i].close_port()
+        # Add relative position for centering purpose
+        mean_pos = np.mean(params[:,0,:],axis=0)
+        self.m_fit_out_port_relative.set_all(params[:,0,:] - mean_pos, data_dim=2)
+        self.m_fit_out_port_relative.copy_attributes(self.m_image_in_port)
+        self.m_fit_out_port_relative.add_history("Fit Center", message_history)
+        self.m_fit_out_port_relative.close_port()
+        print(' [DONE]')

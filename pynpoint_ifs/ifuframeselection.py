@@ -191,14 +191,16 @@ class AutomaticallySelectWavelengthRangeModule(ProcessingModule):
             wlen_bounds[cube_i,0] = wavelength[lower_bound]
             wlen_bounds[cube_i,1] = wavelength[higher_bound]
         nframes = np.array(nframes)
-        remove_low = np.max(wlen_bounds[:,0])
-        remove_high = np.min(wlen_bounds[:,1])
+        remove_low = np.max(wlen_bounds[:,0])//0.00013*0.00013 # sometimes led to float errors if not making sure that this is a multiple of the wvl spacing
+        remove_high_tmp = np.min(wlen_bounds[:,1])
+        remove_high = remove_low + ((remove_high_tmp-remove_low)//0.00013)*0.00013
         print('Keeping data between wavelength %.3f and %.3f' % (remove_low,remove_high))
         new_nframes = []
         for cube_i,lencube in enumerate(nframes):
             index_f0 = int(np.sum(nframes[:cube_i]))
             wavelength = get_wavelength(files[cube_i],header_crval=self.m_header_crval,header_cd=self.m_header_cd)
             data = self.m_image_in_port[index_f0:index_f0 + lencube,:,:]
+            assert(len(data)==len(wavelength))
             mask_keep = np.logical_and(wavelength >= remove_low,wavelength <= remove_high)
             new_lencube = np.sum(mask_keep)
             

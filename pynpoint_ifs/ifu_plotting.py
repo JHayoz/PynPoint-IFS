@@ -10,36 +10,36 @@ def get_ticks(img,star_pos,pixscale,tick_sep=0.5,minor_tick_sep = 0.1):
     ticks_x = np.arange(lenx)
     ticks_y = np.arange(lenx)
     
-    ticks_x = np.arange(lenx)
     sky_x = -(ticks_x-star_pos[0])*pixscale
-    low_x = np.ceil(np.min(sky_x)/tick_sep)*tick_sep
-    high_x = np.ceil(np.max(sky_x)/tick_sep)*tick_sep
-    nb_ticks = int(np.ceil((high_x-low_x)/tick_sep)+1)
-    ticks_x_labels = np.linspace(low_x,high_x,nb_ticks)
+    bound_x = int(np.max(np.abs(sky_x)//tick_sep)+1)*tick_sep
+    nb_ticks = int(np.round((2*bound_x)/tick_sep) + 1)
+    ticks_x_labels = np.linspace(-bound_x,bound_x,nb_ticks)
     tick_x_pos = (-ticks_x_labels)/pixscale + star_pos[0]
     
-    nb_ticks = int(np.ceil((high_x-low_x)/minor_tick_sep)+1)
-    ticks_x_labels_minor = np.linspace(low_x,high_x,nb_ticks)
+    nb_ticks = int(np.round((2*bound_x)/minor_tick_sep) + 1)
+    ticks_x_labels_minor = np.linspace(-bound_x,bound_x,nb_ticks)
     tick_x_pos_minor = (-ticks_x_labels_minor)/pixscale + star_pos[0]
     
-    ticks_y = np.arange(lenx)
     sky_y = (ticks_y-star_pos[1])*pixscale
-    low_y = np.ceil(np.min(sky_y)/tick_sep)*tick_sep
-    high_y = np.ceil(np.max(sky_y)/tick_sep)*tick_sep
-    nb_ticks = int(np.ceil((high_y-low_y)/tick_sep)+1)
-    ticks_y_labels = np.linspace(low_y,high_y,nb_ticks)
+    bound_y = int(np.max(np.abs(sky_y)//tick_sep)+1)*tick_sep
+    nb_ticks = int(np.round((2*bound_y)/tick_sep) + 1)
+    ticks_y_labels = np.linspace(-bound_y,bound_y,nb_ticks)
     tick_y_pos = (ticks_y_labels)/pixscale + star_pos[1]
     
-    nb_ticks = int(np.ceil((high_y-low_y)/minor_tick_sep)+1)
-    ticks_y_labels_minor = np.linspace(low_y,high_y,nb_ticks)
+    nb_ticks = int(np.round((2*bound_y)/minor_tick_sep) + 1)
+    ticks_y_labels_minor = np.linspace(-bound_y,bound_y,nb_ticks)
     tick_y_pos_minor = (ticks_y_labels_minor)/pixscale + star_pos[1]
+    
     return ticks_x_labels,tick_x_pos,ticks_x_labels_minor,tick_x_pos_minor,ticks_y_labels,tick_y_pos,ticks_y_labels_minor,tick_y_pos_minor
 
 def plot_circle(ax,position,radius,color='w'):
     c1 = plt.Circle((position[0],position[1]),radius,facecolor='none',edgecolor=color,ls='dashed')
     ax.add_patch(c1)
 def annotate_snr(ax,position,snr,fontsize=10):
-    ax.annotate('S/N=%.1f' % (snr),(position[0],position[1]),color='w',fontsize=fontsize,weight='bold',horizontalalignment='center')
+    if snr >= 100:
+        ax.annotate('S/N=%i' % (int(np.round(snr))),(position[0],position[1]),color='w',fontsize=fontsize,weight='bold',horizontalalignment='center')
+    else:
+        ax.annotate('S/N=%.1f' % (snr),(position[0],position[1]),color='w',fontsize=fontsize,weight='bold',horizontalalignment='center')
 def make_ccf_plot(ax,cc,drv,rv_planet,planet_pos,star_pos,vmin=0,vmax=5):
     rv_max_i=np.argmin(np.abs(drv-rv_planet))
     img = cc[rv_max_i]
@@ -89,12 +89,22 @@ def make_PSF_plot(ax,image,crop=5,tick_params = [],fontsize=12,star_pos = [],tit
     # colorbar
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
-    lowerval = 4
-    ticks = [1./10**(i) for i in np.arange(lowerval)]
-    ticklabels = np.arange(0,-lowerval,-1)
-    cbar = plt.colorbar(im, cax=cax,ticks=ticks)
-    cbar.ax.set_yticklabels(ticklabels)
-    cbar.set_label('Contrast [dex]', rotation=270,labelpad=10)
+    
+    if norm=='log':
+        cbar_label = 'Contrast [dex]'
+        lowerval = 4
+        ticks = [1./10**(i) for i in np.arange(lowerval)]
+        ticklabels = np.arange(0,-lowerval,-1)
+        cbar = plt.colorbar(im, cax=cax,ticks=ticks)
+        cbar.ax.set_yticklabels(ticklabels)
+    elif norm=='linear':
+        cbar_label = 'Contrast (a.u.)'
+        cbar = plt.colorbar(im, cax=cax)
+    else:
+        cbar_label = 'Contrast'
+        cbar = plt.colorbar(im, cax=cax)
+    
+    cbar.set_label(cbar_label, rotation=270,labelpad=10)
     # star position
     ax.scatter(x= star_pos[0], y= star_pos[1],s=50,color='orange',marker='*')
     # ticks and labels
@@ -123,6 +133,8 @@ def nice_name(mol):
             result += '$_{%s}$' % str
         else:
             result += str
+    if mol in ['CO_36','13CO','CO36']:
+        result = '$^{13}$C$^{16}$O'
         
     return result
 

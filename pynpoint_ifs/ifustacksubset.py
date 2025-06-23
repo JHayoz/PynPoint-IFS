@@ -260,6 +260,9 @@ class CrossCorrelationPreparationModule(ProcessingModule):
                     n_samples_corr = np.where(n_samples != 0, n_samples, 1)
                     combined_cube = np.nansum(cube_wv, axis=0)/n_samples_corr
                     cube_median[k] = combined_cube
+                elif self.m_combine == 'sum':
+                    combined_cube = np.nansum(cube_wv, axis=0)
+                    cube_median[k] = combined_cube
                 else:
                     combined_cube = np.nanmedian(cube_wv, axis=0)
                     cube_median[k] = np.where(mask_final, combined_cube, np.nan)

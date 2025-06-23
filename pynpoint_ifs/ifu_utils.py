@@ -14,7 +14,7 @@ from astropy.io import fits
 import matplotlib.pyplot as plt
 from photutils.aperture import CircularAperture, CircularAnnulus
 from photutils.aperture import aperture_photometry
-from photutils.centroids import centroid_quadratic
+from photutils.centroids import centroid_quadratic,centroid_sources,centroid_2dg
 import copy
 from spectres import spectres
 from scipy.stats import median_abs_deviation
@@ -125,6 +125,7 @@ def plot_2D_data(pipeline,data_tag,wvl_tag,plot='all'):
         img = images2D[img_i]
         plt.figure(figsize=(15,10))
         plt.imshow(img,vmin=np.percentile(img,5),vmax=np.percentile(img,95))
+        plt.colorbar()
         plt.title('Cube %i' % img_i)
         plt.show()
     return images2D
@@ -164,6 +165,7 @@ def plot_data(pipeline,data_tag,wvl_tag,method,contour=True,scatter_data=None):
         plt.title('Cube %i' % img_i)
         if not (scatter_data is None):
             plt.scatter(x=scatter_data_reformat[img_i][0],y=scatter_data_reformat[img_i][1],color='r')
+        plt.colorbar()
         plt.show()
     return datacubes
 # extract the wavelength info from an ERIS dataset reduced with esoreflex
@@ -561,11 +563,11 @@ def centroid_pointsource(pipeline,image_cube,filter_sigma=1,plot=True,save=True,
         planet_position[img_i,2] = y1 - len_y/2
         if plot:
             plt.figure()
-            plt.imshow(image_f,vmin=np.percentile(image_f,30),vmax=np.percentile(image_f,99))
+            plt.imshow(image_f,vmin=np.percentile(image_f,30),vmax=np.percentile(image_f,99),origin='lower')
             plt.scatter(x=planet_position[img_i,0] + len_x/2,y=planet_position[img_i,2] + len_x/2,color='r')
             plt.show()
     if save:
-        relative_position = planet_position - planet_position[0,:]
+        relative_position = planet_position - np.mean(planet_position[:,:],axis=0)
         out_port = pp.core.dataio.OutputPort(save_fit_tag, data_storage_in=pipeline.m_data_storage)
         out_port.set_all(planet_position)
         out_port.close_port()
@@ -575,6 +577,47 @@ def centroid_pointsource(pipeline,image_cube,filter_sigma=1,plot=True,save=True,
         out_port.close_port()
     else:
         return planet_position
+def centroid_2_pointsources(pipeline,image_cube,star_position,planet_position,filter_sigma=1,crop=0,box=15,plot=True,save=True,save_fit_tag = 'cubeposition'):
+    lencube,lenx,leny=np.shape(image_cube)
+    # prepare the cube
+    image_cube_crop = np.zeros_like(image_cube)
+    if crop > 0:
+        image_cube_crop[:,crop:-crop,crop:-crop] = image_cube[:,crop:-crop,crop:-crop]
+    else:
+        image_cube_crop[:,:,:] = image_cube[:,:,:]
+    # prepare the initial guess
+    position_sources = np.array([
+        star_position, # star
+        planet_position # companion
+    ])
+    # go through each cube
+    star_fitparams = np.zeros((lencube,14))
+    planet_fitparams = np.zeros((lencube,14))
+    for cube_i in range(lencube):
+        image_smooth = gaussian_filter(image_cube_crop[cube_i],filter_sigma)
+        x, y = centroid_sources(image_smooth, xpos=position_sources[:,0], ypos=position_sources[:,1], box_size=box,
+                        centroid_func=centroid_2dg)
+        star_fitparams[cube_i,0] = x[0]-lenx/2
+        star_fitparams[cube_i,2] = y[0]-leny/2
+        planet_fitparams[cube_i,0] = x[1]-lenx/2
+        planet_fitparams[cube_i,2] = y[1]-leny/2
+        
+        if plot:
+            plt.figure()
+            plt.imshow(image_smooth,vmin=np.percentile(image_smooth,30),vmax=np.percentile(image_smooth,96),origin='lower')
+            plt.plot(planet_fitparams[cube_i,0] + lenx/2,planet_fitparams[cube_i,2] + leny/2,color='r',marker='.',markersize=5)
+            plt.plot(star_fitparams[cube_i,0] + lenx/2,star_fitparams[cube_i,2] + leny/2,color='r',marker='*',markersize=6)
+            plt.show()
+    if save:
+        out_port = pp.core.dataio.OutputPort(save_fit_tag + '_star', data_storage_in=pipeline.m_data_storage)
+        out_port.set_all(star_fitparams)
+        out_port.close_port()
+        
+        out_port = pp.core.dataio.OutputPort(save_fit_tag + '_planet', data_storage_in=pipeline.m_data_storage)
+        out_port.set_all(planet_fitparams)
+        out_port.close_port()
+    else:
+        return star_fitparams,planet_fitparams
 
 def get_sky_calc_model(obj_coord='23 07 28.9014701064 +21 08 02.109792078',date='2023-10-15T03:25:30',wres=20000):
     
@@ -593,7 +636,7 @@ def get_sky_calc_model(obj_coord='23 07 28.9014701064 +21 08 02.109792078',date=
     wvl = tbl['lam'].data/1e3
     transm = tbl['trans'].data
     flux = tbl['flux'].data
-    return wvl,transm,flux
+    return wvl.astype(np.float64),transm.astype(np.float64),flux.astype(np.float64)
 
 def overlap_2_arrays(wvl_ref,wvl_axis,dlambda_ref,dlambda_axis):
     # overlap is matrix
@@ -769,11 +812,11 @@ def calculate_molmap_metric(ccf_data,drv,planet_pos,star_pos,rv_planet,mask_widt
     # create histogram
     bins_vals,bins_pos = np.histogram(all_vals_norm,bins=n_bins)
     bins_pos_mid= 0.5*(bins_pos[1:]+bins_pos[:-1])
-    med_val = np.median(all_vals_norm)
+    med_val = np.nanmedian(all_vals_norm)
     mad_val = median_abs_deviation(all_vals_norm)
     # fit with a gaussian
     mu_guess = bins_pos_mid[np.argmax(bins_vals)]
-    std_guess=1.5*np.std(bins_vals)
+    std_guess=1.5*median_abs_deviation(bins_vals)
     a_guess=np.max(bins_vals)/2
     
     popt,pcov = curve_fit(
