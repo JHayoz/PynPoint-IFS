@@ -36,6 +36,7 @@
 ehthumbs.db
 Thumbs.db
 __pycache__/*
+src/pynpoint_ifs/__pycache__/*
 src/pynpoint_ifs.egg-info/*
 
 # Ignore environment #
@@ -45,7 +46,7 @@ ENV_IFS_DEV/*
 # Ignore jupyter notebook checkpoints #
 #######################################
 .ipynb_checkpoints/*
-
+src/pynpoint_ifs/.ipynb_checkpoints/*
 
 # Specific files #
 ##################
