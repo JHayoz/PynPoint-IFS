@@ -11,13 +11,6 @@ Python package to incorporate High-Contrast Integral Field Spectroscopic data in
 - Computation of detection significance
 - Computation of detection limits
 
-## Table of Contents
-- [Installation](#installation)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
-- [Acknowledgements](#acknowledgements)
-
 ## Installation
 
 `pip install pynpoint-ifs`
