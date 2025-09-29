@@ -20,13 +20,13 @@ Python package to incorporate High-Contrast Integral Field Spectroscopic data in
 
 ## Installation
 
-pip install pynpoint-ifs
+`pip install pynpoint-ifs`
 
 or clone from source:
 
-git clone git@github.com:JHayoz/PynPoint-IFS.git
-cd PynPoint-IFS
-pip install .
+`git clone git@github.com:JHayoz/PynPoint-IFS.git`
+`cd PynPoint-IFS`
+`pip install .`
 
 ## Usage
 
