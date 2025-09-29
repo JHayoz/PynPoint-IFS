@@ -1,4 +1,4 @@
-ompiled source #
+# Compiled source #
 ###################
 *.com
 *.class
@@ -38,10 +38,16 @@ Thumbs.db
 __pycache__/*
 src/pynpoint_ifs.egg-info/*
 
-# Ignore environment
+# Ignore environment #
+######################
 ENV_IFS_DEV/*
 
-# Specific files
-######################
+# Ignore jupyter notebook checkpoints #
+#######################################
+.ipynb_checkpoints/*
+
+
+# Specific files #
+##################
 *test*.ipynb
 pynpoint_ifs/ifu_utils_hidden.py
