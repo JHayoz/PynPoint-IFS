@@ -36,6 +36,10 @@ ompiled source #
 ehthumbs.db
 Thumbs.db
 __pycache__/*
+src/pynpoint_ifs.egg-info/*
+
+# Ignore environment
+ENV_IFS_DEV/*
 
 # Specific files
 ######################
