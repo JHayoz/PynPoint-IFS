@@ -51,4 +51,4 @@ src/pynpoint_ifs/.ipynb_checkpoints/*
 # Specific files #
 ##################
 *test*.ipynb
-pynpoint_ifs/ifu_utils_hidden.py
+src/pynpoint_ifs/ifu_utils_hidden.py
