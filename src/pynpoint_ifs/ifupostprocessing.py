@@ -1,13 +1,23 @@
-import numpy as np
+"""
+Pipeline modules for running spectral PCA and combining the cubes.
+This is not 
+"""
+
 import time
+
+from typeguard import typechecked
+
+import numpy as np
+
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
-from typeguard import typechecked
-from background_files.ifuprocessingfunctions import do_PCA_sub,do_derotate_shift
+
+from pynpoint_ifs.ifuprocessingfunctions import do_PCA_sub,do_derotate_shift
 
 class IFUPostProcessingModule(ProcessingModule):
     """
-    Module to subtract the PSF and combine the data
+    Module to subtract the PSF using spectral PCA and combine the data.
+    Stopped in the middle of development, so high chances that it wasn't properly finished
     """
 
     __author__ = 'Jean Hayoz'
@@ -27,19 +37,34 @@ class IFUPostProcessingModule(ProcessingModule):
         combine: str = 'median'
     ) -> None:
         """
-        Constructor of IFUPostProcessingModule.
-        
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param image_out_tag: Tag of the database entry that is written as output. Should be
+        Parameters
+        ----------
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        image_out_tag : str
+            Tag of the database entry that is written as output. Should be
         different from *image_in_tag*.
-        :type image_out_tag: str
-        :param pca_number: number of principal components to remove
-        :type pca_number: int
+        mask_out_tag : str
+            Tag of the database entry that is written as output for the mask.
+        pca_number : int
+            number of principal components to remove
+        shift_cubes_in_tag : str
+            Tag of the database entry with the position towards which the images should be shifted (f.ex. the position of the star)
+        shift : bool
+            whether to shift the images to center them.
+        rotate : bool
+            whether to rotate the images to a common orientation.
+        stack : bool
+            whether stack the images to a unique cube.
+        combine : str
+            method used to stack the cubes. Can be 'mean', 'median', or 'combine' to consider each pixel separately (i.e. the result for a given pixel is the mean over all the images which contain this pixel)
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(IFUPostProcessingModule, self).__init__(name_in)
@@ -63,7 +88,15 @@ class IFUPostProcessingModule(ProcessingModule):
         self.m_stack = stack
         self.m_combine = combine
         
-    def run(self):
+    def run(self) -> None:
+        """
+        Run method of the module.
+        
+        Returns
+        -------
+        NoneType
+            None
+        """
         
         nspectrum = self.m_image_in_port.get_attribute("NFRAMES")
         

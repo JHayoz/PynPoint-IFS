@@ -9,23 +9,19 @@ import warnings
 import copy
 
 from typing import Union, Tuple
+from typeguard import typechecked
 
 import numpy as np
 from PyAstronomy.pyasl import crosscorrRV
 from joblib import Parallel, delayed
 
-from typeguard import typechecked
-
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
 from pynpoint.util.image import shift_image, rotate
 
-from background_files.ifu_utils import select_cubes
+from pynpoint_ifs.ifu_utils import select_cubes
 
-
-
-
-class CrossCorrelationModule_Jean(ProcessingModule):
+class CrossCorrelationModule(ProcessingModule):
     """
     Module to cross-correlate continuum-subtracted IFS data with a spectral template.
     """
@@ -48,35 +44,39 @@ class CrossCorrelationModule_Jean(ProcessingModule):
         cpus: int = 100
     ) -> None:
         """
-        Constructor of CrossCorrelationModule_Jean.
+        Parameters
+        ----------
         
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param RV: (-RV, RV) is the interval of radial velocity used to doppler-shift the template, in km/s
-        :type RV: float
-        :param dRV: spacing between each step of radial velocity
-        :type dRV: float
-        :param range_CCF_RV: region (in radial velocity) away from the peak, that is used to estimate the std of the CCF in order to calculate the SNR
-        :type range_CCF_RV: float
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param data_wv_in_tag: Tag of the database entry that is read as wavelength axis.
-        :type data_wv_in_tag: str
-        :param model_wv: wavelength array for the model.
-        :type model_wv: ndarray
-        :param model_abs: flux array for the model.
-        :type model_abs: ndarray
-        :param SNR_cube_out_tag: Tag of the database entry that is written as output, saving the 2D SNR molecular map (x,y) -> SNR
-        :type SNR_cube_out_tag: str
-        :param CC_cube_out_tag: Tag of the database entry that is written as output, saving the 3D CCF (x,y,rv) -> CCF
-        :type CC_cube_out_tag: str
-        :param RV_data_out_tag: Tag of the database entry that is written as output radial velocity axis for the CCF
-        :type RV_data_out_tag: str
+        name_in : str
+            Unique name of the module instance.
+        RV : float
+            (-RV, RV) is the interval of radial velocity used to doppler-shift the template, in km/s
+        dRV : float
+            spacing between each step of radial velocity
+        range_CCF_RV : float
+            region (in radial velocity) away from the peak, that is used to estimate the std of the CCF in order to calculate the SNR
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        data_wv_in_tag : str
+            Tag of the database entry that is read as wavelength axis.
+        model_wv : ndarray
+            wavelength array for the model.
+        model_abs : ndarray
+            flux array for the model.
+        SNR_cube_out_tag : str
+            Tag of the database entry that is written as output, saving the 2D SNR molecular map (x,y) -> SNR
+        CC_cube_out_tag : str
+            Tag of the database entry that is written as output, saving the 3D CCF (x,y,rv) -> CCF
+        RV_data_out_tag : str
+            Tag of the database entry that is written as output radial velocity axis for the CCF
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
-        super(CrossCorrelationModule_Jean, self).__init__(name_in)
+        super(CrossCorrelationModule, self).__init__(name_in)
         
         self.m_data_wv_in_port = self.add_input_port(data_wv_in_tag)
         self.m_image_in_port = self.add_input_port(image_in_tag)
@@ -92,11 +92,14 @@ class CrossCorrelationModule_Jean(ProcessingModule):
         self.m_abs_model = model_abs
         self.m_cpus = cpus
     
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module. Cross-correlates the IFS data with a spectral template, and parallelises the operation (using joblib) for speed.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         

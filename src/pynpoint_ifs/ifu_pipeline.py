@@ -1,3 +1,6 @@
+"""
+Preprocessing pipeline
+"""
 import pynpoint as pp
 from astropy.io import fits
 import numpy as np
@@ -16,6 +19,7 @@ from pynpoint_ifs.ifupcasubtraction import *
 from pynpoint_ifs.ifuresizing import *
 from pynpoint_ifs.ifu_utils import select_cubes,plot_data,sort_files,get_wavelength_info,piecewise_spline_fit,replace_outliers,load_spectral_templates,get_sky_calc_model,rebin
 
+# automatically run the whole preprocessing pipeline
 def run_preprocessing(pipeline, sequence_files, run_which = 'all', hdr_wvl_keywords = ['CRVAL3','CD3_3'],crop=4,outlier_sigma=20,bad_pixel_corr = True,bp_sigma=5.,bp_iterate=10,bp_box=9,start='reading'):
     possible_starts = ['reading','wvlsel','nan','crop','bpclean','outlier']
     if not start in possible_starts:

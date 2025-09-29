@@ -24,6 +24,234 @@ from pynpoint.util.module import progress
 
 from pynpoint_ifs.ifu_utils import select_cubes,drizzle_stellar_spectrum,replace_outliers,extract_bright_px,replace_outliers_MAD,extract_star_spectrum_from_sub_bright_px
 
+class IFUPSFSubtractionSpectralPCAModule(ProcessingModule):
+    """
+    Module to subtract the PSF using spectral PCA as in Hayoz et al. 2025.
+    """
+
+    __author__ = 'Jean Hayoz'
+        
+    @typechecked
+    def __init__(
+        self,
+        name_in: str = 'select_range',
+        image_in_tag: str = 'datacubes',
+        wv_in_tag: str = 'wavelength',
+        image_out_tag: str = 'PSF_sub',
+        pca_out_tag: str = 'PCA_model',
+        pca_number: int = 5,
+        method: str = 'full',
+        use_mask: bool = False,
+        mask_position: List = [],
+        mask_radius: float = 6.
+    ) -> None:
+        """
+        Parameters
+        ----------
+        name_in: str
+            Unique name of the module instance.
+        image_in_tag: str
+            Tag of the database entry that is read as input.
+        wv_in_tag: str
+            Tag of the database entry that is read as input wavelength axis.
+        image_out_tag: str
+            Tag of the database entry that is written as output. Should be
+        different from *image_in_tag*.
+        pca_out_tag: str
+            Tag of the database entry that is written as output for the PCA model.
+        pca_number: int
+            number of PCA components to remove.
+        method: str
+            method to model the stellar spectrum, either single, where each cube is analysed separately (x,y) -> F for each t, or full where all cubes are taken into account (t,x,y) -> F
+        use_mask: bool
+            whether to use a mask
+        mask_position: List
+            position of the mask
+        mask_radius: float
+            radius of the mask
+        
+        Returns
+        -------
+        NoneType
+            None
+        """
+        
+        super(IFUPSFSubtractionSpectralPCAModule, self).__init__(name_in)
+        
+        self.m_image_in_port = self.add_input_port(image_in_tag)
+        self.m_wv_in_port = self.add_input_port(wv_in_tag)
+        self.m_image_out_port = self.add_output_port(image_out_tag)
+        self.m_pca_out_port = self.add_output_port(pca_out_tag)
+        
+        self.pca_number = pca_number
+        self.m_method = method
+
+        self.m_use_mask = use_mask
+        self.m_mask_position = mask_position
+        self.m_mask_radius = mask_radius
+    
+    def run(self) -> None:
+        """
+        Run method of the module.
+        
+        Returns
+        -------
+        NoneType
+            None
+        """
+        # to-do
+        # allow possibility to shift images before combining, rotate as well
+        # should use full time stack to build up model
+        # then use it to subtract PSF
+        # then shift and derotate images
+        # mean or median combine the residuals
+
+
+        # reshape the input data
+        print('Load all data')
+        data = self.m_image_in_port.get_all()
+        print('Done')
+        wavelength = self.m_wv_in_port.get_all()
+        datacubes = select_cubes(data,wavelength)
+        len_cube,len_wvl,len_x,len_y = np.shape(datacubes)
+        start_time = time.time()
+        if self.m_method == 'full':
+            # reshape: time, spatial x and y all into one axis, second axis is spectrum
+            # output: (time x X x Y, wvl)
+            pix_list_all = np.transpose(datacubes,axes=(0,2,3,1)).reshape((-1,len_wvl))
+            mask_nans = np.sum(np.isnan(pix_list_all),axis=1) > 0
+            pix_list = pix_list_all[~mask_nans]
+            
+            # subtract the mean value first
+            spec_mean = np.mean(pix_list,axis=0)
+            pix_list_res = pix_list - spec_mean
+            
+            # calculate the PCA once, but truncate to the different number of components
+            pca_sklearn = PCA(n_components=self.pca_number, svd_solver="arpack",whiten=True)
+            pca_sklearn.fit(pix_list_res)
+            pca_representation = pca_sklearn.transform(pix_list_res)
+            model_psf_1d = pca_sklearn.inverse_transform(pca_representation)
+            model_psf_1d_all = np.zeros_like(pix_list_all)
+            model_psf_1d_all[~mask_nans] = model_psf_1d+spec_mean
+            model_psf = np.transpose(model_psf_1d_all.reshape((len_cube,len_x,len_y,len_wvl)),axes=(0,3,1,2))
+            residuals = np.zeros_like(datacubes)
+            for cube_i in range(len_cube):
+                psf_model = model_psf[cube_i,:,:,:]
+                residuals[cube_i,:,:,:] = datacubes[cube_i,:,:,:] - psf_model[:,:,:]
+            self.m_image_out_port.set_all(residuals.reshape((-1,len_x,len_y)))
+            self.m_pca_out_port.set_all(model_psf.reshape((-1,len_x,len_y)))
+        elif self.m_method == 'single':
+            for cube_i in range(len_cube):
+                progress(cube_i, len_cube, 'Running IFUPSFSubtractionSpectralPCAModule...', start_time)
+                pix_list_all = np.transpose(datacubes[cube_i],axes=(1,2,0)).reshape((-1,len_wvl))
+                if self.m_use_mask:
+                    X,Y = np.meshgrid(np.arange(len_x),np.arange(len_y))
+                    mask = np.sqrt((X - self.m_mask_position[0] - len_x/2)**2 + (Y - self.m_mask_position[1] - len_y/2)**2) <= self.m_mask_radius
+                    mask_cube = np.zeros((len_wvl,len_x,len_y),dtype=bool)
+                    for k in range(len_wvl):
+                        mask_cube[k,:,:] = mask
+                    pix_list_masked = np.transpose(datacubes[cube_i][~mask_cube].reshape((len_wvl,-1)))
+                    
+                else:
+                    pix_list_masked = pix_list_all
+                
+                mask_nans = np.sum(np.isnan(pix_list_masked),axis=1) > 0
+                
+                pix_list = pix_list_masked[~mask_nans]
+                # subtract the mean value first
+                spec_mean = np.mean(pix_list,axis=0)
+                pix_list_res = pix_list - spec_mean
+                # calculate the PCA once, but truncate to the different number of components
+                pca_sklearn = PCA(n_components=self.pca_number, svd_solver="arpack",whiten=True)
+                
+                # check for nans
+                assert(np.sum(np.isnan(pix_list_res)) == 0)
+                
+                pca_sklearn.fit(pix_list_res)
+                pca_representation = pca_sklearn.transform(pix_list_res)
+                model_psf_1d = pca_sklearn.inverse_transform(pca_representation)
+                model_psf_1d_all = np.zeros_like(pix_list_all)
+                model_psf_1d_all[~mask_nans] = model_psf_1d+spec_mean
+                # model_psf_1d_all = model_psf_1d+spec_mean
+                model_psf = np.transpose((model_psf_1d_all).reshape((len_x,len_y,len_wvl)),axes=(2,0,1))
+                residuals = datacubes[cube_i,:,:,:] - model_psf[:,:,:]
+                
+                self.m_image_out_port.append(residuals)
+                self.m_pca_out_port.append(model_psf)
+        elif self.m_method == 'normalize_full':
+            
+            total_flux = np.sum(datacubes,axis=1)
+            lencube,lenx,leny = np.shape(total_flux)
+            total_flux_non_zeros = np.where(total_flux != 0, total_flux, 1)
+            norm_datacube = datacubes[:,:,:,:] / np.reshape(total_flux_non_zeros,(lencube,1,lenx,leny))
+                
+            pix_list_all = np.transpose(norm_datacube,axes=(0,2,3,1)).reshape((-1,len_wvl))
+            mask_nans = np.sum(np.isnan(pix_list_all),axis=1) > 0
+            pix_list = pix_list_all[~mask_nans]
+            
+            # subtract the mean value first
+            spec_mean = np.mean(pix_list,axis=0)
+            pix_list_res = pix_list - spec_mean
+            
+            # calculate the PCA once, but truncate to the different number of components
+            pca_sklearn = PCA(n_components=self.pca_number, svd_solver="arpack",whiten=True)
+            pca_sklearn.fit(pix_list_res)
+            pca_representation = pca_sklearn.transform(pix_list_res)
+            model_psf_1d = pca_sklearn.inverse_transform(pca_representation)
+            model_psf_1d_all = np.zeros_like(pix_list_all)
+            model_psf_1d_all[~mask_nans] = model_psf_1d+spec_mean
+            model_psf = np.transpose(model_psf_1d_all.reshape((len_cube,len_x,len_y,len_wvl)),axes=(0,3,1,2))
+            residuals = np.zeros_like(datacubes)
+            for cube_i in range(len_cube):
+                psf_model = model_psf[cube_i,:,:,:]*np.reshape(total_flux_non_zeros[cube_i],(1,lenx,leny))
+                residuals[cube_i,:,:,:] = datacubes[cube_i,:,:,:] - psf_model[:,:,:]
+                self.m_pca_out_port.append(psf_model)
+            self.m_image_out_port.set_all(residuals.reshape((-1,len_x,len_y)))
+        elif self.m_method == 'normalize_single':
+            for cube_i in range(len_cube):
+                progress(cube_i, len_cube, 'Running IFUPSFSubtractionSpectralPCAModule...', start_time)
+                datacube = datacubes[cube_i]
+                total_flux = np.sum(datacube,axis=0)
+                total_flux_non_zeros = np.where(total_flux != 0, total_flux, 1)
+                norm_datacube = datacube[:,:,:] / total_flux_non_zeros
+                
+                pix_list_all = np.transpose(norm_datacube,axes=(1,2,0)).reshape((-1,len_wvl))
+                mask_nans = np.sum(np.isnan(pix_list_all),axis=1) > 0
+                pix_list = pix_list_all[~mask_nans]
+                # subtract the mean value first
+                spec_mean = np.mean(pix_list,axis=0)
+                pix_list_res = pix_list - spec_mean
+                
+                # calculate the PCA once, but truncate to the different number of components
+                pca_sklearn = PCA(n_components=self.pca_number, svd_solver="arpack",whiten=True)
+                pca_sklearn.fit(pix_list_res)
+                
+                pca_representation = pca_sklearn.transform(pix_list_res)
+                model_psf_1d = pca_sklearn.inverse_transform(pca_representation)
+                model_psf_1d_all = np.zeros_like(pix_list_all)
+                model_psf_1d_all[~mask_nans] = model_psf_1d+spec_mean
+                model_psf = np.transpose((model_psf_1d_all).reshape((len_x,len_y,len_wvl)),axes=(2,0,1))
+                residuals = np.zeros_like(datacube)
+                
+                psf_model = model_psf[:,:,:]*total_flux_non_zeros
+                residuals[:,:,:] = datacubes[cube_i,:,:,:] - psf_model[:,:,:]
+                self.m_image_out_port.append(residuals)
+                self.m_pca_out_port.append(psf_model)
+        else:
+            print('CHOOSE METHOD = full or single')
+            assert(False)
+        
+        print('Pipeline finished',end='\r')
+        self.m_image_out_port.copy_attributes(self.m_image_in_port)
+        print('Attributes copied',end='\r')
+        self.m_image_out_port.add_history("PCA PSF subtraction",'PC = %i' % self.pca_number)
+        print('History added',end='\r')
+        self.m_image_out_port.close_port()
+        #self.m_pca_out_port.copy_attributes(self.m_image_in_port)
+        #self.m_pca_out_port.add_history("PCA PSF subtraction",'PC = %i' % self.pca_number)
+        self.m_pca_out_port.close_port()
+        print('Ports closed',end='\r')
+
 class IFUPSFSubtractionModuleCugno(ProcessingModule):
     """
     Module to subtract the stellar signal using High-Resolution Spectral Differential Imaging (HRSDI) as in Cugno et al. 2022
@@ -366,237 +594,9 @@ class IFUContinuumRemovalModule(ProcessingModule):
         self.m_image_out_port.add_history("Continuum sub",'sigma = %.2f' % self.m_gauss_sigma)
         self.m_image_out_port.close_port()
 
-class IFUPCAPSFSubtractionModule(ProcessingModule):
-    """
-    Module to subtract the PSF using spectral PCA as in Hayoz et al. 2024(5).
-    """
-
-    __author__ = 'Jean Hayoz'
-        
-    @typechecked
-    def __init__(
-        self,
-        name_in: str = 'select_range',
-        image_in_tag: str = 'datacubes',
-        wv_in_tag: str = 'wavelength',
-        image_out_tag: str = 'PSF_sub',
-        pca_out_tag: str = 'PCA_model',
-        pca_number: int = 5,
-        method: str = 'full',
-        use_mask: bool = False,
-        mask_position: List = [],
-        mask_radius: float = 6.
-    ) -> None:
-        """
-        Parameters
-        ----------
-        name_in: str
-            Unique name of the module instance.
-        image_in_tag: str
-            Tag of the database entry that is read as input.
-        wv_in_tag: str
-            Tag of the database entry that is read as input wavelength axis.
-        image_out_tag: str
-            Tag of the database entry that is written as output. Should be
-        different from *image_in_tag*.
-        pca_out_tag: str
-            Tag of the database entry that is written as output for the PCA model.
-        pca_number: int
-            number of PCA components to remove.
-        method: str
-            method to model the stellar spectrum, either single, where each cube is analysed separately (x,y) -> F for each t, or full where all cubes are taken into account (t,x,y) -> F
-        use_mask: bool
-            whether to use a mask
-        mask_position: List
-            position of the mask
-        mask_radius: float
-            radius of the mask
-        
-        Returns
-        -------
-        NoneType
-            None
-        """
-        
-        super(IFUPCAPSFSubtractionModule, self).__init__(name_in)
-        
-        self.m_image_in_port = self.add_input_port(image_in_tag)
-        self.m_wv_in_port = self.add_input_port(wv_in_tag)
-        self.m_image_out_port = self.add_output_port(image_out_tag)
-        self.m_pca_out_port = self.add_output_port(pca_out_tag)
-        
-        self.pca_number = pca_number
-        self.m_method = method
-
-        self.m_use_mask = use_mask
-        self.m_mask_position = mask_position
-        self.m_mask_radius = mask_radius
-    
-    def run(self) -> None:
-        """
-        Run method of the module.
-        
-        Returns
-        -------
-        NoneType
-            None
-        """
-        # to-do
-        # allow possibility to shift images before combining, rotate as well
-        # should use full time stack to build up model
-        # then use it to subtract PSF
-        # then shift and derotate images
-        # mean or median combine the residuals
-
-
-        # reshape the input data
-        print('Load all data')
-        data = self.m_image_in_port.get_all()
-        print('Done')
-        wavelength = self.m_wv_in_port.get_all()
-        datacubes = select_cubes(data,wavelength)
-        len_cube,len_wvl,len_x,len_y = np.shape(datacubes)
-        start_time = time.time()
-        if self.m_method == 'full':
-            # reshape: time, spatial x and y all into one axis, second axis is spectrum
-            # output: (time x X x Y, wvl)
-            pix_list_all = np.transpose(datacubes,axes=(0,2,3,1)).reshape((-1,len_wvl))
-            mask_nans = np.sum(np.isnan(pix_list_all),axis=1) > 0
-            pix_list = pix_list_all[~mask_nans]
-            
-            # subtract the mean value first
-            spec_mean = np.mean(pix_list,axis=0)
-            pix_list_res = pix_list - spec_mean
-            
-            # calculate the PCA once, but truncate to the different number of components
-            pca_sklearn = PCA(n_components=self.pca_number, svd_solver="arpack",whiten=True)
-            pca_sklearn.fit(pix_list_res)
-            pca_representation = pca_sklearn.transform(pix_list_res)
-            model_psf_1d = pca_sklearn.inverse_transform(pca_representation)
-            model_psf_1d_all = np.zeros_like(pix_list_all)
-            model_psf_1d_all[~mask_nans] = model_psf_1d+spec_mean
-            model_psf = np.transpose(model_psf_1d_all.reshape((len_cube,len_x,len_y,len_wvl)),axes=(0,3,1,2))
-            residuals = np.zeros_like(datacubes)
-            for cube_i in range(len_cube):
-                psf_model = model_psf[cube_i,:,:,:]
-                residuals[cube_i,:,:,:] = datacubes[cube_i,:,:,:] - psf_model[:,:,:]
-            self.m_image_out_port.set_all(residuals.reshape((-1,len_x,len_y)))
-            self.m_pca_out_port.set_all(model_psf.reshape((-1,len_x,len_y)))
-        elif self.m_method == 'single':
-            for cube_i in range(len_cube):
-                progress(cube_i, len_cube, 'Running IFUPCAPSFSubtractionModule...', start_time)
-                pix_list_all = np.transpose(datacubes[cube_i],axes=(1,2,0)).reshape((-1,len_wvl))
-                if self.m_use_mask:
-                    X,Y = np.meshgrid(np.arange(len_x),np.arange(len_y))
-                    mask = np.sqrt((X - self.m_mask_position[0] - len_x/2)**2 + (Y - self.m_mask_position[1] - len_y/2)**2) <= self.m_mask_radius
-                    mask_cube = np.zeros((len_wvl,len_x,len_y),dtype=bool)
-                    for k in range(len_wvl):
-                        mask_cube[k,:,:] = mask
-                    pix_list_masked = np.transpose(datacubes[cube_i][~mask_cube].reshape((len_wvl,-1)))
-                    
-                else:
-                    pix_list_masked = pix_list_all
-                
-                mask_nans = np.sum(np.isnan(pix_list_masked),axis=1) > 0
-                
-                pix_list = pix_list_masked[~mask_nans]
-                # subtract the mean value first
-                spec_mean = np.mean(pix_list,axis=0)
-                pix_list_res = pix_list - spec_mean
-                # calculate the PCA once, but truncate to the different number of components
-                pca_sklearn = PCA(n_components=self.pca_number, svd_solver="arpack",whiten=True)
-                
-                # check for nans
-                assert(np.sum(np.isnan(pix_list_res)) == 0)
-                
-                pca_sklearn.fit(pix_list_res)
-                pca_representation = pca_sklearn.transform(pix_list_res)
-                model_psf_1d = pca_sklearn.inverse_transform(pca_representation)
-                model_psf_1d_all = np.zeros_like(pix_list_all)
-                model_psf_1d_all[~mask_nans] = model_psf_1d+spec_mean
-                # model_psf_1d_all = model_psf_1d+spec_mean
-                model_psf = np.transpose((model_psf_1d_all).reshape((len_x,len_y,len_wvl)),axes=(2,0,1))
-                residuals = datacubes[cube_i,:,:,:] - model_psf[:,:,:]
-                
-                self.m_image_out_port.append(residuals)
-                self.m_pca_out_port.append(model_psf)
-        elif self.m_method == 'normalize_full':
-            
-            total_flux = np.sum(datacubes,axis=1)
-            lencube,lenx,leny = np.shape(total_flux)
-            total_flux_non_zeros = np.where(total_flux != 0, total_flux, 1)
-            norm_datacube = datacubes[:,:,:,:] / np.reshape(total_flux_non_zeros,(lencube,1,lenx,leny))
-                
-            pix_list_all = np.transpose(norm_datacube,axes=(0,2,3,1)).reshape((-1,len_wvl))
-            mask_nans = np.sum(np.isnan(pix_list_all),axis=1) > 0
-            pix_list = pix_list_all[~mask_nans]
-            
-            # subtract the mean value first
-            spec_mean = np.mean(pix_list,axis=0)
-            pix_list_res = pix_list - spec_mean
-            
-            # calculate the PCA once, but truncate to the different number of components
-            pca_sklearn = PCA(n_components=self.pca_number, svd_solver="arpack",whiten=True)
-            pca_sklearn.fit(pix_list_res)
-            pca_representation = pca_sklearn.transform(pix_list_res)
-            model_psf_1d = pca_sklearn.inverse_transform(pca_representation)
-            model_psf_1d_all = np.zeros_like(pix_list_all)
-            model_psf_1d_all[~mask_nans] = model_psf_1d+spec_mean
-            model_psf = np.transpose(model_psf_1d_all.reshape((len_cube,len_x,len_y,len_wvl)),axes=(0,3,1,2))
-            residuals = np.zeros_like(datacubes)
-            for cube_i in range(len_cube):
-                psf_model = model_psf[cube_i,:,:,:]*np.reshape(total_flux_non_zeros[cube_i],(1,lenx,leny))
-                residuals[cube_i,:,:,:] = datacubes[cube_i,:,:,:] - psf_model[:,:,:]
-                self.m_pca_out_port.append(psf_model)
-            self.m_image_out_port.set_all(residuals.reshape((-1,len_x,len_y)))
-        elif self.m_method == 'normalize_single':
-            for cube_i in range(len_cube):
-                progress(cube_i, len_cube, 'Running IFUPCAPSFSubtractionModule...', start_time)
-                datacube = datacubes[cube_i]
-                total_flux = np.sum(datacube,axis=0)
-                total_flux_non_zeros = np.where(total_flux != 0, total_flux, 1)
-                norm_datacube = datacube[:,:,:] / total_flux_non_zeros
-                
-                pix_list_all = np.transpose(norm_datacube,axes=(1,2,0)).reshape((-1,len_wvl))
-                mask_nans = np.sum(np.isnan(pix_list_all),axis=1) > 0
-                pix_list = pix_list_all[~mask_nans]
-                # subtract the mean value first
-                spec_mean = np.mean(pix_list,axis=0)
-                pix_list_res = pix_list - spec_mean
-                
-                # calculate the PCA once, but truncate to the different number of components
-                pca_sklearn = PCA(n_components=self.pca_number, svd_solver="arpack",whiten=True)
-                pca_sklearn.fit(pix_list_res)
-                
-                pca_representation = pca_sklearn.transform(pix_list_res)
-                model_psf_1d = pca_sklearn.inverse_transform(pca_representation)
-                model_psf_1d_all = np.zeros_like(pix_list_all)
-                model_psf_1d_all[~mask_nans] = model_psf_1d+spec_mean
-                model_psf = np.transpose((model_psf_1d_all).reshape((len_x,len_y,len_wvl)),axes=(2,0,1))
-                residuals = np.zeros_like(datacube)
-                
-                psf_model = model_psf[:,:,:]*total_flux_non_zeros
-                residuals[:,:,:] = datacubes[cube_i,:,:,:] - psf_model[:,:,:]
-                self.m_image_out_port.append(residuals)
-                self.m_pca_out_port.append(psf_model)
-        else:
-            print('CHOOSE METHOD = full or single')
-            assert(False)
-        
-        print('Pipeline finished',end='\r')
-        self.m_image_out_port.copy_attributes(self.m_image_in_port)
-        print('Attributes copied',end='\r')
-        self.m_image_out_port.add_history("PCA PSF subtraction",'PC = %i' % self.pca_number)
-        print('History added',end='\r')
-        self.m_image_out_port.close_port()
-        #self.m_pca_out_port.copy_attributes(self.m_image_in_port)
-        #self.m_pca_out_port.add_history("PCA PSF subtraction",'PC = %i' % self.pca_number)
-        self.m_pca_out_port.close_port()
-        print('Ports closed',end='\r')
-
 class IFUPCAModule(ProcessingModule):
     """
-    Module to subtract the remaining detector/instrumental effects after PSF subtraction. In principle same as ADIPCA, but without ADI. Redundant since also implemented in IFUPCAPSFSubtractionModule with the method = 'full'
+    Module to subtract the remaining detector/instrumental effects after PSF subtraction. In principle same as ADIPCA, but without ADI. Redundant since also implemented in IFUPSFSubtractionSpectralPCAModule with the method = 'full'
     """
 
     __author__ = 'Jean Hayoz'
@@ -692,7 +692,7 @@ class IFUPCAModule(ProcessingModule):
         self.m_image_out_port.add_history("PCA subtraction",'PC = %i' % self.pca_number)
         self.m_image_out_port.close_port()
 
-class IFUSpatialPCAADIModule(ProcessingModule):
+class IFUPSFSubtractionSpatialPCAADIModule(ProcessingModule):
     """
     Module to subtract the PSF using PCA/ADI. This module does not stack the data (see CrossCorrelationPreparationModule)
     """
@@ -729,7 +729,7 @@ class IFUSpatialPCAADIModule(ProcessingModule):
             None
         """
         
-        super(IFUSpatialPCAADIModule, self).__init__(name_in)
+        super(IFUPSFSubtractionSpatialPCAADIModule, self).__init__(name_in)
         
         self.m_image_in_port = self.add_input_port(image_in_tag)
         self.m_wv_in_port = self.add_input_port(wv_in_tag)
@@ -763,7 +763,7 @@ class IFUSpatialPCAADIModule(ProcessingModule):
         residuals = np.zeros_like(datacubes)
         start_time = time.time()
         for wvl_i in range(len_wvl):
-            progress(wvl_i, len_wvl, 'Running IFUSpatialPCAADIModule...', start_time)
+            progress(wvl_i, len_wvl, 'Running IFUPSFSubtractionSpatialPCAADIModule...', start_time)
             
             image_cube = datacubes[:,wvl_i,:,:]
             # reshape

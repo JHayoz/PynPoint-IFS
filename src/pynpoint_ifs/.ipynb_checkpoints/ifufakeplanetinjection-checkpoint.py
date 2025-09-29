@@ -1,3 +1,6 @@
+"""
+Pipeline modules for fake planet injection
+"""
 import numpy as np
 from scipy.ndimage import shift
 from scipy.interpolate import interp1d
@@ -17,36 +20,69 @@ class IFUFakePlanetInjectionModule(ProcessingModule):
     __author__ = 'Jean Hayoz'
     
     @typechecked
-    def __init__(self,
-                 name_in: str = 'inject_planet',
-                 image_in_tag: str = 'raw',
-                 psf_ref_in_tag: str = 'PSF_reference',
-                 data_wv_in_tag: str = 'wavelength_range',
-                 image_out_tag: str = 'raw_fake',
-                 star_position_param_tag: str = 'star_position',
-                 fake_planet_position: List[float] = [1.,0.],
-                 fake_planet_contrast: float = 0.,
-                 science_dit: float = 1.,
-                 reference_dit: float = 1.,
-                 star_spectrum: Union[np.ndarray, List[float]] = [1.],
-                 fake_planet_spectrum: Union[np.ndarray, List[float]] = [1.],
-                 photometric_filter_path: str = None,
-                 ncpus: int = 1
-                 ):
+    def __init__(
+        self,
+        name_in: str = 'inject_planet',
+        image_in_tag: str = 'raw',
+        psf_ref_in_tag: str = 'PSF_reference',
+        wvl_in_tag: str = 'wavelength_range',
+        image_out_tag: str = 'raw_fake',
+        star_position_param_tag: str = 'star_position',
+        fake_planet_position: List[float] = [1.,0.],
+        fake_planet_contrast: float = 0.,
+        science_dit: float = 1.,
+        reference_dit: float = 1.,
+        star_spectrum: Union[np.ndarray, List[float]] = [1.],
+        fake_planet_spectrum: Union[np.ndarray, List[float]] = [1.],
+        photometric_filter_path: str = None,
+        ncpus: int = 1
+    ) -> None:
         """
-        Constructor of IFUFakePlanetInjectionModule.
+        Parameters
+        ----------
         
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
+        name_in: str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        psf_ref_in_tag : str
+            Tag of the database entry that is read as input for the PSF reference.
+        wvl_in_tag : str
+            Tag of the database for the wavelength axis
+        image_out_tag : str
+            Tag of the database entry that is written as output. Should be
+        different from *image_in_tag*.
+        star_position_param_tag : str
+            Tag of the database with the position of the star
+        fake_planet_position : List[float]
+            Position of the fake planet to inject. The first element is the position angle measured in degree, 
+        the second is the angular separation measured in arcsecs.
+        fake_planet_contrast : float
+            Contrast of the fake planet to inject measured in delta-magnitude.
+        science_dit : float
+            DIT of the science images
+        reference_dit : float
+            DIT of the reference images
+        star_spectrum : Union[np.ndarray, List[float]]
+            Stellar spectrum
+        fake_planet_spectrum : Union[np.ndarray, List[float]]
+            Spectrum of the planet to inject
+        photometric_filter_path : str
+            Path to the location of the filter transmission function used to measure the photometry. Needs to be within the wavelength interval of both the star and planet spectrum
+        ncpus : int
+            if larger than 1, uses joblib to parallelise the fake planet injection.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(IFUFakePlanetInjectionModule, self).__init__(name_in)
         
         self.m_image_in_port = self.add_input_port(image_in_tag)
         self.m_psf_ref_in_port = self.add_input_port(psf_ref_in_tag)
-        self.m_data_wv_in_port = self.add_input_port(data_wv_in_tag)
+        self.m_wvl_in_port = self.add_input_port(wvl_in_tag)
         self.m_image_out_port = self.add_output_port(image_out_tag)
         self.m_star_position_param_port = self.add_input_port(star_position_param_tag)
 
@@ -60,11 +96,14 @@ class IFUFakePlanetInjectionModule(ProcessingModule):
         self.m_ncpus = ncpus
         
         
-    def run(self):
+    def run(self) -> None:
         """
         Run method of the module.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         def shift_and_add(datacube,fake_planet,shift_vector):
             shifted_fake_planet = np.zeros_like(fake_planet)
@@ -75,7 +114,7 @@ class IFUFakePlanetInjectionModule(ProcessingModule):
             return shifted_cube
         
         # Check the inputs
-        if (len(self.m_star_spectrum) != len(self.m_fake_planet_spectrum)) or (len(self.m_star_spectrum) != self.m_data_wv_in_port.get_shape()[0]) or (len(self.m_star_spectrum) != self.m_psf_ref_in_port.get_shape()[0]):
+        if (len(self.m_star_spectrum) != len(self.m_fake_planet_spectrum)) or (len(self.m_star_spectrum) != self.m_wvl_in_port.get_shape()[0]) or (len(self.m_star_spectrum) != self.m_psf_ref_in_port.get_shape()[0]):
             raise RuntimeError(
                 "The star, planet and wavelength axis of the data don't have the same length"
             )
@@ -84,7 +123,7 @@ class IFUFakePlanetInjectionModule(ProcessingModule):
                 "The PSF reference needs to have the same shape as the science data"
             )
         
-        wavelength = self.m_data_wv_in_port.get_all()
+        wavelength = self.m_wvl_in_port.get_all()
         lenwvl = len(wavelength)
         lencube,lenx,leny = self.m_image_in_port.get_shape()
         pixscale = self.m_image_in_port.get_attribute('PIXSCALE')

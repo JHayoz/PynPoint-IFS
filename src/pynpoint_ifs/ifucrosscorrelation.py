@@ -21,7 +21,7 @@ from pynpoint.util.image import shift_image, rotate
 
 from pynpoint_ifs.ifu_utils import select_cubes
 
-class CrossCorrelationModule_Jean(ProcessingModule):
+class CrossCorrelationModule(ProcessingModule):
     """
     Module to cross-correlate continuum-subtracted IFS data with a spectral template.
     """
@@ -76,7 +76,7 @@ class CrossCorrelationModule_Jean(ProcessingModule):
             None
         """
         
-        super(CrossCorrelationModule_Jean, self).__init__(name_in)
+        super(CrossCorrelationModule, self).__init__(name_in)
         
         self.m_data_wv_in_port = self.add_input_port(data_wv_in_tag)
         self.m_image_in_port = self.add_input_port(image_in_tag)

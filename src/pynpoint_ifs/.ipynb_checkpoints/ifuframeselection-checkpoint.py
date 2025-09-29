@@ -8,15 +8,15 @@ import math
 import warnings
 
 from typing import Union, Tuple
+from typeguard import typechecked
 
 import numpy as np
 from PyAstronomy.pyasl import dopplerShift
 
-from typeguard import typechecked
-
 from pynpoint.core.processing import ProcessingModule
 from pynpoint.util.module import progress
-from background_files.ifu_utils import get_wavelength
+
+from pynpoint_ifs.ifu_utils import get_wavelength
 
 class SelectWavelengthRangeModule(ProcessingModule):
     """
@@ -36,23 +36,26 @@ class SelectWavelengthRangeModule(ProcessingModule):
         wv_out_tag: str = "wavelengths"
     ) -> None:
         """
-        Constructor of SelectWavelengthRangeModule.
-        
-        :param range_f: final wavelegth range for the selected frames
-        :type range_f: tuple(float,float)
-        :param range_i: initial wavelegth range for the cube
-        :type range_i: tuple(float,float)
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param image_out_tag: Tag of the database entry that is written as output. Should be
+        Parameters
+        ----------
+        range_f : tuple(float,float)
+            final wavelegth range for the selected frames
+        range_i : tuple(float,float)
+            initial wavelegth range for the cube
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        image_out_tag : str
+            Tag of the database entry that is written as output. Should be
         different from *image_in_tag*.
-        :type image_out_tag: str
-        :param wv_out_tag: Tag of the database entry for the wavelength that is written as output. Should be different from *image_in_tag*.
-        :type wv_out_tag: str
+        wv_out_tag : str
+            Tag of the database entry for the wavelength that is written as output. Should be different from *image_in_tag*.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(SelectWavelengthRangeModule, self).__init__(name_in)
@@ -65,12 +68,15 @@ class SelectWavelengthRangeModule(ProcessingModule):
         self.m_range_i = range_i
     
     
-    def run(self):
+    def run(self) -> None:
         """
-            Run method of the module. Convolves the images with a Gaussian kernel.
-            
-            :return: None
-            """
+        Run method of the module.
+        
+        Returns
+        -------
+        NoneType
+            None
+        """
         
         
         nframes = self.m_image_in_port.get_attribute("NFRAMES")
@@ -104,7 +110,7 @@ class SelectWavelengthRangeModule(ProcessingModule):
 
 class AutomaticallySelectWavelengthRangeModule(ProcessingModule):
     """
-    Module to select spectral channels based on the bounds of the spectra in the data
+    Module to automatically select spectral channels based on the bounds of the spectra in the data (i.e. where the spectra end on the detector frames)
     """
     
     __author__ = 'Jean Hayoz'
@@ -120,19 +126,26 @@ class AutomaticallySelectWavelengthRangeModule(ProcessingModule):
         header_cd: str = 'CD3_3'
     ) -> None:
         """
-        Constructor of AutomaticallySelectWavelengthRangeModule.
-        
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param image_in_tag: Tag of the database entry that is read as input.
-        :type image_in_tag: str
-        :param image_out_tag: Tag of the database entry that is written as output. Should be
+        Parameters
+        ----------
+        name_in : str
+            Unique name of the module instance.
+        image_in_tag : str
+            Tag of the database entry that is read as input.
+        image_out_tag : str
+            Tag of the database entry that is written as output. Should be
         different from *image_in_tag*.
-        :type image_out_tag: str
-        :param wv_out_tag: Tag of the database entry for the wavelength that is written as output. Should be different from *image_in_tag*.
-        :type wv_out_tag: str
+        wv_out_tag : str
+            Tag of the database entry for the wavelength that is written as output. Should be different from *image_in_tag*.
+        header_crval: str 
+            header keyword for the reference wavelength of the first wavelength bin
+        header_cd : str
+            header keyword for the bin width of the wavelength axis
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(AutomaticallySelectWavelengthRangeModule, self).__init__(name_in)
@@ -144,12 +157,15 @@ class AutomaticallySelectWavelengthRangeModule(ProcessingModule):
         self.m_header_crval = header_crval
         self.m_header_cd = header_cd
     
-    def run(self):
+    def run(self) -> None:
         """
-            Run method of the module. Convolves the images with a Gaussian kernel.
-            
-            :return: None
-            """
+        Run method of the module.
+        
+        Returns
+        -------
+        NoneType
+            None
+        """
         
         
         files = np.array(self.m_image_in_port.get_attribute('FILES'),dtype=str)
@@ -175,14 +191,16 @@ class AutomaticallySelectWavelengthRangeModule(ProcessingModule):
             wlen_bounds[cube_i,0] = wavelength[lower_bound]
             wlen_bounds[cube_i,1] = wavelength[higher_bound]
         nframes = np.array(nframes)
-        remove_low = np.max(wlen_bounds[:,0])
-        remove_high = np.min(wlen_bounds[:,1])
+        remove_low = np.max(wlen_bounds[:,0])//0.00013*0.00013 # sometimes led to float errors if not making sure that this is a multiple of the wvl spacing
+        remove_high_tmp = np.min(wlen_bounds[:,1])
+        remove_high = remove_low + ((remove_high_tmp-remove_low)//0.00013)*0.00013
         print('Keeping data between wavelength %.3f and %.3f' % (remove_low,remove_high))
         new_nframes = []
         for cube_i,lencube in enumerate(nframes):
             index_f0 = int(np.sum(nframes[:cube_i]))
             wavelength = get_wavelength(files[cube_i],header_crval=self.m_header_crval,header_cd=self.m_header_cd)
             data = self.m_image_in_port[index_f0:index_f0 + lencube,:,:]
+            assert(len(data)==len(wavelength))
             mask_keep = np.logical_and(wavelength >= remove_low,wavelength <= remove_high)
             new_lencube = np.sum(mask_keep)
             
@@ -226,18 +244,21 @@ class CorrectWavelengthModule(ProcessingModule):
         shift_km_s: float = 0.
     ) -> None:
         """
-        Constructor of CorrectWavelengthModule.
+        Parameters
+        ----------
+        name_in: str
+            Unique name of the module instance.
+        wv_in_tag: str
+            Tag of the database entry that is read as input.
+        wv_out_tag: str
+            Tag of the database entry for the wavelength that is written as output. Should be different from *image_in_tag*.
+        shift_km_s: float
+            Radial velocity by which the wavelength axis should be Doppler-shifted.
         
-        :param name_in: Unique name of the module instance.
-        :type name_in: str
-        :param wv_in_tag: Tag of the database entry that is read as input.
-        :type wv_in_tag: str
-        :param wv_out_tag: Tag of the database entry for the wavelength that is written as output. Should be different from *image_in_tag*.
-        :type wv_out_tag: str
-        :param shift_km_s: Radial velocity by which the wavelength axis should be Doppler-shifted.
-        :type shift_km_s: float
-        
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         super(CorrectWavelengthModule, self).__init__(name_in)
@@ -248,11 +269,14 @@ class CorrectWavelengthModule(ProcessingModule):
         self.m_shift_km_s = shift_km_s
     
     
-    def run(self):
+    def run(self) -> None:
         """
-        Run method of the module. Convolves the images with a Gaussian kernel.
+        Run method of the module.
         
-        :return: None
+        Returns
+        -------
+        NoneType
+            None
         """
         
         wv = self.m_wv_in_port.get_all()

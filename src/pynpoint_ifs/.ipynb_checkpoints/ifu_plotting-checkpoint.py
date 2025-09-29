@@ -1,6 +1,5 @@
-"""
-Code dump for nice plots
-"""
+# Code dump for nice plots
+
 from scipy.ndimage import shift
 from scipy.ndimage import gaussian_filter
 import numpy as np

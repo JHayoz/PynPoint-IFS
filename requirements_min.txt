@@ -2,7 +2,6 @@ fqdn==1.5.1
 isoduration==20.11.0
 jsonpointer==3.0.0
 jupyter==1.1.1
-petitRADTRANS==3.1.2
 pip==23.0.1
 PyAstronomy==0.22.0
 pynpoint==0.11.0

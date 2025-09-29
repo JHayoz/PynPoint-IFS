@@ -1,3 +1,7 @@
+"""
+Utility functions
+"""
+
 import numpy as np
 import pandas as pd
 from scipy.ndimage import gaussian_filter,median_filter
@@ -22,6 +26,45 @@ import skycalc_ipy
 from datetime import datetime
 from pathlib import Path
 
+# change the configuration file of the PynPoint Pypeline to use the right headers for ERIS/SPIFFIER
+# pixscale is the pixel scale in arcseconds, i.e. 0.0125 means pixel with sky sizes of 0.0125", or 12.5mas, which corresponds to the 50mas platescale of ERIS/SPIFFIER as spatial pixels across the slitlet direction are doubled in the standard pipeline
+# cpu is the number of CPUs to use for parallel computing
+# memory is the size of the RAM in GB. The required size will depend on the size of the dataset.
+def change_config(pipeline,pixscale=0.0125,cpu=100,memory=750):
+    config_path = Path(pipeline._m_working_place + 'PynPoint_config.ini')
+    pipeline._m_working_place + 'PynPoint_config.ini'
+    config_text=[
+        '[header]',
+        '',
+        'INSTRUMENT: INSTRUME',
+        'NFRAMES: NAXIS3',
+        'EXP_NO: ESO TPL EXPNO',
+        'DIT: ESO DET SEQ1 DIT',
+        'NDIT: ESO DET NDIT',
+        'PARANG_START: ESO ADA POSANG',
+        'PARANG_END: ESO ADA POSANG',
+        'DITHER_X: ESO OCS CUMOFFS RA',
+        'DITHER_Y: ESO OCS CUMOFFS DEC',
+        'PUPIL: ESO ADA ABSROT START',
+        'DATE: DATE-OBS',
+        'LATITUDE: ESO TEL GEOLAT',
+        'LONGITUDE: ESO TEL GEOLON',
+        'RA: RA',
+        'DEC: DEC',
+        'PARANG: None',
+        'WAVELENGTH: None',
+        '',
+        '[settings]',
+        '',
+        f'PIXSCALE: {pixscale}',
+        f'MEMORY: {memory}',
+        f'CPU: {cpu}'
+    ]
+    config_text_str = '\n'.join(config_text)
+    with open(config_path,'w') as f:
+        f.write(config_text_str)
+    
+    
 # fit an 2D-airy model to some data
 # x_guess,y_guess,amplitude_guess,radius_guess are parameter guesses for the fit
 def fit_airy(box,x_guess,y_guess,amplitude_guess,radius_guess):

@@ -19,9 +19,6 @@ setup(
                 'sklearn',
                 'seaborn',
                 'spectres',
-                'petitRADTRANS',
                 'photutils',
                 'skycalc_ipy'],
 )
-
-# Dependencies: Pynpoint, petitRADTRANS?, spectres?

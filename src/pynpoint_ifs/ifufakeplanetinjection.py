@@ -1,3 +1,6 @@
+"""
+Pipeline modules for fake planet injection
+"""
 import numpy as np
 from scipy.ndimage import shift
 from scipy.interpolate import interp1d

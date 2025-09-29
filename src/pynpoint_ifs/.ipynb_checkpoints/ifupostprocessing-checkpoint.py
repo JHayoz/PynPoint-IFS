@@ -1,5 +1,6 @@
 """
 Pipeline modules for running spectral PCA and combining the cubes.
+This is not 
 """
 
 import time
@@ -15,7 +16,8 @@ from pynpoint_ifs.ifuprocessingfunctions import do_PCA_sub,do_derotate_shift
 
 class IFUPostProcessingModule(ProcessingModule):
     """
-    Module to subtract the PSF using spectral PCA and combine the data
+    Module to subtract the PSF using spectral PCA and combine the data.
+    Stopped in the middle of development, so high chances that it wasn't properly finished
     """
 
     __author__ = 'Jean Hayoz'
